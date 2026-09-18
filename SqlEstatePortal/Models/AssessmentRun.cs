@@ -51,4 +51,9 @@ public class AssessmentRun
     public ICollection<AssessmentSysadmin> Sysadmins { get; set; } = new List<AssessmentSysadmin>();
     public ICollection<AssessmentConfiguration> Configurations { get; set; } = new List<AssessmentConfiguration>();
     public ICollection<AssessmentBackup> Backups { get; set; } = new List<AssessmentBackup>();
+    public ICollection<AssessmentLinkedServer> LinkedServers { get; set; } = new List<AssessmentLinkedServer>();
+    public ICollection<AssessmentSqlLogin> SqlLogins { get; set; } = new List<AssessmentSqlLogin>();
+    public ICollection<AssessmentAvailabilityGroup> AvailabilityGroups { get; set; } = new List<AssessmentAvailabilityGroup>();
+    public ICollection<AssessmentCertificate> Certificates { get; set; } = new List<AssessmentCertificate>();
+    public ICollection<AssessmentTlsCertificate> TlsCertificates { get; set; } = new List<AssessmentTlsCertificate>();
 }

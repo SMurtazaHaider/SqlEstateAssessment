@@ -37,6 +37,13 @@ public class InventoryServersController : Controller
         subscription = Norm(subscription);
         dataCentre = Norm(dataCentre);
 
+        // Default the Status filter to Reachable when the page is opened without
+        // an explicit filter submission (sidebar navigation, or RESET). Once the
+        // form has been submitted the chosen value is honoured, including "All",
+        // which posts an empty status and so is present in the query string.
+        if (!Request.Query.ContainsKey("status"))
+            status = ServerReachabilityService.StatusReachable;
+
         var all = await _db.CtServers.AsNoTracking()
             .OrderBy(s => s.ServerName)
             .ToListAsync();
@@ -111,7 +118,10 @@ public class InventoryServersController : Controller
             ServerNameOptions = DistinctSorted(all.Select(s => s.ServerName)),
             ServerTypeOptions = DistinctSorted(all.Select(s => s.ServerType)),
             EnvironmentOptions = DistinctSorted(all.Select(s => s.Environment)),
-            StatusOptions = DistinctSorted(all.Select(s => s.ServerStatus)),
+            // Always offer both reachability states, so the default selection is
+            // still shown even when no server currently carries that status.
+            StatusOptions = DistinctSorted(all.Select(s => s.ServerStatus)
+                .Concat([ServerReachabilityService.StatusReachable, ServerReachabilityService.StatusUnreachable])),
             SubscriptionOptions = DistinctSorted(all.Select(s => s.Subscription)),
             DataCentreOptions = DistinctSorted(all.Select(s => s.DataCentreLocation)),
             Servers = list.Select(s =>

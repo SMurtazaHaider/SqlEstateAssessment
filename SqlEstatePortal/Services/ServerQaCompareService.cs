@@ -142,12 +142,34 @@ public class ServerQaCompareService
             .Where(c => c.AssessmentRunId == assessmentRunId && c.ServerName == name)
             .ToListAsync(ct);
 
+        var linkedServers = await _db.AssessmentLinkedServers.AsNoTracking()
+            .Where(c => c.AssessmentRunId == assessmentRunId && c.ServerName == name)
+            .ToListAsync(ct);
+
+        var sqlLogins = await _db.AssessmentSqlLogins.AsNoTracking()
+            .Where(c => c.AssessmentRunId == assessmentRunId && c.ServerName == name)
+            .ToListAsync(ct);
+
+        var availabilityGroups = await _db.AssessmentAvailabilityGroups.AsNoTracking()
+            .Where(c => c.AssessmentRunId == assessmentRunId && c.ServerName == name)
+            .ToListAsync(ct);
+
+        var certificates = await _db.AssessmentCertificates.AsNoTracking()
+            .Where(c => c.AssessmentRunId == assessmentRunId && c.ServerName == name)
+            .ToListAsync(ct);
+
+        var tlsCertificates = await _db.AssessmentTlsCertificates.AsNoTracking()
+            .Where(c => c.AssessmentRunId == assessmentRunId && c.ServerName == name)
+            .ToListAsync(ct);
+
         return new ServerQaSnapshot
         {
             ServerName = name,
             AssessmentRunId = assessmentRunId,
             AssessedAt = selected.StartedAt,
-            Items = Flatten(snapshot, configs, services, databases, volumes, sysadmins)
+            Items = Flatten(
+                snapshot, configs, services, databases, volumes, sysadmins,
+                linkedServers, sqlLogins, availabilityGroups, certificates, tlsCertificates)
         };
     }
 
@@ -273,7 +295,12 @@ public class ServerQaCompareService
         IEnumerable<AssessmentService> services,
         IEnumerable<AssessmentDatabase> databases,
         IEnumerable<AssessmentVolume> volumes,
-        IEnumerable<AssessmentSysadmin> sysadmins)
+        IEnumerable<AssessmentSysadmin> sysadmins,
+        IEnumerable<AssessmentLinkedServer>? linkedServers = null,
+        IEnumerable<AssessmentSqlLogin>? sqlLogins = null,
+        IEnumerable<AssessmentAvailabilityGroup>? availabilityGroups = null,
+        IEnumerable<AssessmentCertificate>? certificates = null,
+        IEnumerable<AssessmentTlsCertificate>? tlsCertificates = null)
     {
         var items = new List<QaParameterItem>();
 
@@ -344,6 +371,48 @@ public class ServerQaCompareService
         {
             var state = admin.IsDisabled ? "Disabled" : "Enabled";
             Add("Sysadmin", admin.Name, string.IsNullOrWhiteSpace(admin.TypeDesc) ? state : $"{admin.TypeDesc} · {state}");
+        }
+
+        foreach (var ls in (linkedServers ?? []).OrderBy(l => l.LinkedServerName, StringComparer.OrdinalIgnoreCase))
+        {
+            Add("Linked server", $"{ls.LinkedServerName} / Data source", ls.DataSource);
+            Add("Linked server", $"{ls.LinkedServerName} / Provider", ls.Provider);
+            Add("Linked server", $"{ls.LinkedServerName} / Remote login", ls.IsRemoteLoginEnabled ? "Yes" : "No");
+            Add("Linked server", $"{ls.LinkedServerName} / RPC out", ls.IsRpcOutEnabled ? "Yes" : "No");
+        }
+
+        foreach (var login in (sqlLogins ?? []).OrderBy(l => l.LoginName, StringComparer.OrdinalIgnoreCase))
+        {
+            Add("SQL login", $"{login.LoginName} / State", login.IsDisabled ? "Disabled" : "Enabled");
+            Add("SQL login", $"{login.LoginName} / Sysadmin", login.IsSysadmin ? "Yes" : "No");
+            Add("SQL login", $"{login.LoginName} / Policy checked", login.IsPolicyChecked ? "Yes" : "No");
+            Add("SQL login", $"{login.LoginName} / Expiration checked", login.IsExpirationChecked ? "Yes" : "No");
+        }
+
+        foreach (var ag in (availabilityGroups ?? [])
+                     .OrderBy(g => g.AgName, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(g => g.ReplicaServerName, StringComparer.OrdinalIgnoreCase))
+        {
+            var replica = string.IsNullOrWhiteSpace(ag.ReplicaServerName) ? ag.AgName : $"{ag.AgName} / {ag.ReplicaServerName}";
+            Add("Availability group", $"{replica} / Role", ag.RoleDesc);
+            Add("Availability group", $"{replica} / Operational state", ag.OperationalStateDesc);
+            Add("Availability group", $"{replica} / Connected state", ag.ConnectedStateDesc);
+            Add("Availability group", $"{replica} / Synchronisation health", ag.SynchronizationHealthDesc);
+        }
+
+        // Thumbprints are unique per server by design, so they are deliberately not
+        // compared here - only the facts that are meaningful for server parity.
+        foreach (var cert in (certificates ?? []).OrderBy(c => c.CertificateName, StringComparer.OrdinalIgnoreCase))
+        {
+            Add("Certificate", $"{cert.CertificateName} / Expiry", cert.ExpiryDate?.ToString("yyyy-MM-dd"));
+            Add("Certificate", $"{cert.CertificateName} / Private key encryption", cert.PrivateKeyEncryption);
+            Add("Certificate", $"{cert.CertificateName} / Protects", cert.ProtectedDatabases);
+        }
+
+        foreach (var tls in (tlsCertificates ?? []).OrderBy(t => t.InstanceName, StringComparer.OrdinalIgnoreCase))
+        {
+            Add("TLS certificate", "Source", tls.CertificateSource);
+            Add("TLS certificate", "Force encryption", tls.ForceEncryption ? "Yes" : "No");
         }
 
         return items;

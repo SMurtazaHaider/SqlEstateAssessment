@@ -136,6 +136,22 @@ else
             {
                 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-configs-diff" type="button">sp_configure Diff (@Model.ConfigsDiff.Count)</button></li>
             }
+            @if (Model.LinkedServersDiff.Count > 0)
+            {
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-linkedservers-diff" type="button">Linked Servers Diff (@Model.LinkedServersDiff.Count)</button></li>
+            }
+            @if (Model.SqlLoginsDiff.Count > 0)
+            {
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sqllogins-diff" type="button">SQL Logins Diff (@Model.SqlLoginsDiff.Count)</button></li>
+            }
+            @if (Model.AvailabilityGroupsDiff.Count > 0)
+            {
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-ag-diff" type="button">Availability Groups Diff (@Model.AvailabilityGroupsDiff.Count)</button></li>
+            }
+            @if (Model.CertificatesDiff.Count > 0)
+            {
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-certs-diff" type="button">Certificates Diff (@Model.CertificatesDiff.Count)</button></li>
+            }
         </ul>
 
         <div class="tab-content estate-tab-content">
@@ -522,7 +538,269 @@ else
                     </table>
                 </div>
             }
+
+            <!-- 7. Linked Servers Diff -->
+            @if (Model.LinkedServersDiff.Count > 0)
+            {
+                <div class="tab-pane fade" id="tab-linkedservers-diff">
+                    <p class="muted">
+                        Linked server definitions (<code>sys.servers</code>) that appeared, disappeared or changed between the two runs.
+                        <span class="badge bg-success">@Model.NewLinkedServersCount new</span>
+                        <span class="badge bg-danger">@Model.RemovedLinkedServersCount removed</span>
+                        <span class="badge bg-primary">@Model.ChangedLinkedServersCount changed</span>
+                    </p>
+                    <table class="table table-sm table-hover align-middle">
+                        <thead>
+                            @await Html.PartialAsync("_ColumnFilters", new[] { "Status", "Server", "Linked Server", "Data Source", "Provider", "Remote Login", "RPC Out", "Changes" })
+                        </thead>
+                        <tbody>
+                        @foreach (var l in Model.LinkedServersDiff)
+                        {
+                            <tr>
+                                <td>
+                                    @if (l.Status == "New")
+                                    {
+                                        <span class="badge bg-success">New</span>
+                                    }
+                                    else if (l.Status == "Removed")
+                                    {
+                                        <span class="badge bg-danger">Removed</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-primary">Changed</span>
+                                    }
+                                </td>
+                                <td>@l.ServerName</td>
+                                <td><strong>@l.LinkedServerName</strong></td>
+                                <td><code>@(l.TargetDataSource ?? l.BaseDataSource ?? "—")</code></td>
+                                <td>@(l.TargetProvider ?? l.BaseProvider ?? "—")</td>
+                                <td>@RenderFlag(l.TargetRemoteLoginEnabled ?? l.BaseRemoteLoginEnabled)</td>
+                                <td>@RenderFlag(l.TargetRpcOutEnabled ?? l.BaseRpcOutEnabled)</td>
+                                <td>
+                                    @if (l.Changes.Count == 0)
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var change in l.Changes)
+                                        {
+                                            <div>@change</div>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            <!-- 8. SQL Logins Diff -->
+            @if (Model.SqlLoginsDiff.Count > 0)
+            {
+                <div class="tab-pane fade" id="tab-sqllogins-diff">
+                    <p class="muted">
+                        SQL authentication logins (<code>sys.sql_logins</code>) added, dropped or altered between the two runs.
+                        <span class="badge bg-success">@Model.NewSqlLoginsCount new</span>
+                        <span class="badge bg-danger">@Model.RemovedSqlLoginsCount removed</span>
+                        <span class="badge bg-primary">@Model.ChangedSqlLoginsCount changed</span>
+                    </p>
+                    <table class="table table-sm table-hover align-middle">
+                        <thead>
+                            @await Html.PartialAsync("_ColumnFilters", new[] { "Status", "Server", "Login", "Disabled", "Sysadmin", "Policy", "Expiration", "Changes" })
+                        </thead>
+                        <tbody>
+                        @foreach (var lg in Model.SqlLoginsDiff)
+                        {
+                            <tr>
+                                <td>
+                                    @if (lg.Status == "New")
+                                    {
+                                        <span class="badge bg-success">New</span>
+                                    }
+                                    else if (lg.Status == "Removed")
+                                    {
+                                        <span class="badge bg-danger">Removed</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-primary">Changed</span>
+                                    }
+                                </td>
+                                <td>@lg.ServerName</td>
+                                <td><strong>@lg.LoginName</strong></td>
+                                <td>@RenderFlag(lg.TargetIsDisabled ?? lg.BaseIsDisabled)</td>
+                                <td>@RenderFlag(lg.TargetIsSysadmin ?? lg.BaseIsSysadmin)</td>
+                                <td>@RenderFlag(lg.TargetIsPolicyChecked ?? lg.BaseIsPolicyChecked)</td>
+                                <td>@RenderFlag(lg.TargetIsExpirationChecked ?? lg.BaseIsExpirationChecked)</td>
+                                <td>
+                                    @if (lg.Changes.Count == 0)
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var change in lg.Changes)
+                                        {
+                                            <div>@change</div>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <!-- 9. Availability Groups Diff -->
+            @if (Model.AvailabilityGroupsDiff.Count > 0)
+            {
+                <div class="tab-pane fade" id="tab-ag-diff">
+                    <p class="muted">
+                        Always On availability group replicas that appeared, disappeared or changed state between the two runs.
+                        <span class="badge bg-success">@Model.NewAvailabilityGroupsCount new</span>
+                        <span class="badge bg-danger">@Model.RemovedAvailabilityGroupsCount removed</span>
+                        <span class="badge bg-primary">@Model.ChangedAvailabilityGroupsCount changed</span>
+                    </p>
+                    <table class="table table-sm table-hover align-middle">
+                        <thead>
+                            @await Html.PartialAsync("_ColumnFilters", new[] { "Status", "Server", "Availability Group", "Replica", "Role", "Operational State", "Sync Health", "Changes" })
+                        </thead>
+                        <tbody>
+                        @foreach (var ag in Model.AvailabilityGroupsDiff)
+                        {
+                            <tr>
+                                <td>
+                                    @if (ag.Status == "New")
+                                    {
+                                        <span class="badge bg-success">New</span>
+                                    }
+                                    else if (ag.Status == "Removed")
+                                    {
+                                        <span class="badge bg-danger">Removed</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-primary">Changed</span>
+                                    }
+                                </td>
+                                <td>@ag.ServerName</td>
+                                <td><strong>@ag.AgName</strong></td>
+                                <td>@(ag.ReplicaServerName ?? "—")</td>
+                                <td>@(ag.TargetRoleDesc ?? ag.BaseRoleDesc ?? "—")</td>
+                                <td>@(ag.TargetOperationalStateDesc ?? ag.BaseOperationalStateDesc ?? "—")</td>
+                                <td>@(ag.TargetSynchronizationHealthDesc ?? ag.BaseSynchronizationHealthDesc ?? "—")</td>
+                                <td>
+                                    @if (ag.Changes.Count == 0)
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var change in ag.Changes)
+                                        {
+                                            <div>@change</div>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <!-- 10. Certificates Diff -->
+            @if (Model.CertificatesDiff.Count > 0)
+            {
+                <div class="tab-pane fade" id="tab-certs-diff">
+                    <p class="muted">
+                        Certificates added, dropped, rotated or moved closer to expiry between the two runs.
+                        <span class="badge bg-success">@Model.NewCertificatesCount new</span>
+                        <span class="badge bg-danger">@Model.RemovedCertificatesCount removed</span>
+                        <span class="badge bg-primary">@Model.ChangedCertificatesCount changed</span>
+                        <span class="badge bg-warning text-dark">@Model.ExpiringCertificatesCount expiring within 90 days</span>
+                    </p>
+                    <table class="table table-sm table-hover align-middle">
+                        <thead>
+                            @await Html.PartialAsync("_ColumnFilters", new[] { "Status", "Server", "Certificate", "Baseline Expiry", "Target Expiry", "Days to Expiry", "Protects", "Changes" })
+                        </thead>
+                        <tbody>
+                        @foreach (var c in Model.CertificatesDiff)
+                        {
+                            <tr>
+                                <td>
+                                    @if (c.Status == "New")
+                                    {
+                                        <span class="badge bg-success">New</span>
+                                    }
+                                    else if (c.Status == "Removed")
+                                    {
+                                        <span class="badge bg-danger">Removed</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-primary">Changed</span>
+                                    }
+                                </td>
+                                <td>@c.ServerName</td>
+                                <td><strong>@c.CertificateName</strong></td>
+                                <td>@(c.BaseExpiryDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                <td>@(c.TargetExpiryDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                <td>
+                                    @{ var days = c.TargetDaysToExpiry ?? c.BaseDaysToExpiry; }
+                                    @if (days is int dv)
+                                    {
+                                        if (dv < 0)
+                                        {
+                                            <span class="text-danger fw-bold">Expired</span>
+                                        }
+                                        else if (c.IsExpiring)
+                                        {
+                                            <span class="text-danger fw-bold">@dv</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@dv</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                </td>
+                                <td>@(c.TargetProtectedDatabases ?? c.BaseProtectedDatabases ?? "—")</td>
+                                <td>
+                                    @if (c.Changes.Count == 0)
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var change in c.Changes)
+                                        {
+                                            <div>@change</div>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
         </div>
     </div>
+}
+
+@functions {
+    private static string RenderFlag(bool? value) => value switch
+    {
+        true => "Yes",
+        false => "No",
+        _ => "—"
+    };
 }
 

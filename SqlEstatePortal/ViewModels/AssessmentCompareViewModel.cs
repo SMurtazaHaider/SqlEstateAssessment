@@ -39,6 +39,31 @@ public class AssessmentCompareViewModel
     // Configurations Diff
     public List<CompareConfigRow> ConfigsDiff { get; set; } = [];
     public int ChangedConfigsCount { get; set; }
+
+    // Linked Servers Diff
+    public List<CompareLinkedServerRow> LinkedServersDiff { get; set; } = [];
+    public int NewLinkedServersCount { get; set; }
+    public int RemovedLinkedServersCount { get; set; }
+    public int ChangedLinkedServersCount { get; set; }
+
+    // SQL Logins Diff
+    public List<CompareSqlLoginRow> SqlLoginsDiff { get; set; } = [];
+    public int NewSqlLoginsCount { get; set; }
+    public int RemovedSqlLoginsCount { get; set; }
+    public int ChangedSqlLoginsCount { get; set; }
+
+    // Availability Groups Diff
+    public List<CompareAvailabilityGroupRow> AvailabilityGroupsDiff { get; set; } = [];
+    public int NewAvailabilityGroupsCount { get; set; }
+    public int RemovedAvailabilityGroupsCount { get; set; }
+    public int ChangedAvailabilityGroupsCount { get; set; }
+
+    // Certificates Diff
+    public List<CompareCertificateRow> CertificatesDiff { get; set; } = [];
+    public int NewCertificatesCount { get; set; }
+    public int RemovedCertificatesCount { get; set; }
+    public int ChangedCertificatesCount { get; set; }
+    public int ExpiringCertificatesCount { get; set; }
 }
 
 public class CompareKpiRow
@@ -138,4 +163,82 @@ public class CompareConfigRow
     public long? BaseRunValue { get; set; }
     public long? TargetRunValue { get; set; }
     public string Status { get; set; } = "Changed";
+}
+
+public class CompareLinkedServerRow
+{
+    /// <summary>
+    /// "New", "Removed", "Changed"
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
+    public string ServerName { get; set; } = string.Empty;
+    public string LinkedServerName { get; set; } = string.Empty;
+    public string? BaseDataSource { get; set; }
+    public string? TargetDataSource { get; set; }
+    public string? BaseProvider { get; set; }
+    public string? TargetProvider { get; set; }
+    public bool? BaseRemoteLoginEnabled { get; set; }
+    public bool? TargetRemoteLoginEnabled { get; set; }
+    public bool? BaseRpcOutEnabled { get; set; }
+    public bool? TargetRpcOutEnabled { get; set; }
+    public List<string> Changes { get; set; } = [];
+}
+
+public class CompareSqlLoginRow
+{
+    /// <summary>
+    /// "New", "Removed", "Changed"
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
+    public string ServerName { get; set; } = string.Empty;
+    public string LoginName { get; set; } = string.Empty;
+    public bool? BaseIsDisabled { get; set; }
+    public bool? TargetIsDisabled { get; set; }
+    public bool? BaseIsSysadmin { get; set; }
+    public bool? TargetIsSysadmin { get; set; }
+    public bool? BaseIsPolicyChecked { get; set; }
+    public bool? TargetIsPolicyChecked { get; set; }
+    public bool? BaseIsExpirationChecked { get; set; }
+    public bool? TargetIsExpirationChecked { get; set; }
+    public List<string> Changes { get; set; } = [];
+}
+
+public class CompareAvailabilityGroupRow
+{
+    /// <summary>
+    /// "New", "Removed", "Changed"
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
+    public string ServerName { get; set; } = string.Empty;
+    public string AgName { get; set; } = string.Empty;
+    public string? ReplicaServerName { get; set; }
+    public string? BaseRoleDesc { get; set; }
+    public string? TargetRoleDesc { get; set; }
+    public string? BaseOperationalStateDesc { get; set; }
+    public string? TargetOperationalStateDesc { get; set; }
+    public string? BaseConnectedStateDesc { get; set; }
+    public string? TargetConnectedStateDesc { get; set; }
+    public string? BaseSynchronizationHealthDesc { get; set; }
+    public string? TargetSynchronizationHealthDesc { get; set; }
+    public List<string> Changes { get; set; } = [];
+}
+
+public class CompareCertificateRow
+{
+    /// <summary>
+    /// "New", "Removed", "Changed"
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
+    public string ServerName { get; set; } = string.Empty;
+    public string CertificateName { get; set; } = string.Empty;
+    public string? Thumbprint { get; set; }
+    public DateTime? BaseExpiryDate { get; set; }
+    public DateTime? TargetExpiryDate { get; set; }
+    public int? BaseDaysToExpiry { get; set; }
+    public int? TargetDaysToExpiry { get; set; }
+    public string? BaseProtectedDatabases { get; set; }
+    public string? TargetProtectedDatabases { get; set; }
+    /// <summary>True when the certificate is expired or inside 90 days on the target run.</summary>
+    public bool IsExpiring { get; set; }
+    public List<string> Changes { get; set; } = [];
 }

@@ -129,6 +129,68 @@ public static class AssessmentSchema
                 LastDifferentialBackup datetime2 NULL,
                 LastLogBackup datetime2 NULL
               );",
+            @"IF OBJECT_ID('AssessmentLinkedServers','U') IS NULL
+              CREATE TABLE AssessmentLinkedServers (
+                Id int IDENTITY PRIMARY KEY,
+                AssessmentRunId int NOT NULL REFERENCES AssessmentRuns(Id) ON DELETE CASCADE,
+                ServerName nvarchar(200) NOT NULL,
+                LinkedServerName nvarchar(200) NOT NULL,
+                DataSource nvarchar(400) NULL,
+                Provider nvarchar(128) NULL,
+                IsRemoteLoginEnabled bit NOT NULL CONSTRAINT DF_AssessmentLinkedServers_RemoteLogin DEFAULT 0,
+                IsRpcOutEnabled bit NOT NULL CONSTRAINT DF_AssessmentLinkedServers_RpcOut DEFAULT 0
+              );",
+            @"IF OBJECT_ID('AssessmentSqlLogins','U') IS NULL
+              CREATE TABLE AssessmentSqlLogins (
+                Id int IDENTITY PRIMARY KEY,
+                AssessmentRunId int NOT NULL REFERENCES AssessmentRuns(Id) ON DELETE CASCADE,
+                ServerName nvarchar(200) NOT NULL,
+                LoginName nvarchar(200) NOT NULL,
+                IsDisabled bit NOT NULL CONSTRAINT DF_AssessmentSqlLogins_Disabled DEFAULT 0,
+                IsPolicyChecked bit NOT NULL CONSTRAINT DF_AssessmentSqlLogins_Policy DEFAULT 0,
+                IsExpirationChecked bit NOT NULL CONSTRAINT DF_AssessmentSqlLogins_Expiration DEFAULT 0,
+                IsSysadmin bit NOT NULL CONSTRAINT DF_AssessmentSqlLogins_Sysadmin DEFAULT 0,
+                CreateDate datetime2 NULL,
+                ModifyDate datetime2 NULL
+              );",
+            @"IF OBJECT_ID('AssessmentAvailabilityGroups','U') IS NULL
+              CREATE TABLE AssessmentAvailabilityGroups (
+                Id int IDENTITY PRIMARY KEY,
+                AssessmentRunId int NOT NULL REFERENCES AssessmentRuns(Id) ON DELETE CASCADE,
+                ServerName nvarchar(200) NOT NULL,
+                AgName nvarchar(200) NOT NULL,
+                ReplicaServerName nvarchar(200) NULL,
+                RoleDesc nvarchar(60) NULL,
+                OperationalStateDesc nvarchar(60) NULL,
+                ConnectedStateDesc nvarchar(60) NULL,
+                SynchronizationHealthDesc nvarchar(60) NULL
+              );",
+            @"IF OBJECT_ID('AssessmentCertificates','U') IS NULL
+              CREATE TABLE AssessmentCertificates (
+                Id int IDENTITY PRIMARY KEY,
+                AssessmentRunId int NOT NULL REFERENCES AssessmentRuns(Id) ON DELETE CASCADE,
+                ServerName nvarchar(200) NOT NULL,
+                DatabaseName nvarchar(128) NULL,
+                CertificateName nvarchar(256) NOT NULL,
+                Subject nvarchar(1000) NULL,
+                IssuerName nvarchar(1000) NULL,
+                StartDate datetime2 NULL,
+                ExpiryDate datetime2 NULL,
+                DaysToExpiry int NULL,
+                PrivateKeyEncryption nvarchar(200) NULL,
+                Thumbprint nvarchar(200) NULL,
+                ProtectedDatabases nvarchar(max) NULL
+              );",
+            @"IF OBJECT_ID('AssessmentTlsCertificates','U') IS NULL
+              CREATE TABLE AssessmentTlsCertificates (
+                Id int IDENTITY PRIMARY KEY,
+                AssessmentRunId int NOT NULL REFERENCES AssessmentRuns(Id) ON DELETE CASCADE,
+                ServerName nvarchar(200) NOT NULL,
+                InstanceName nvarchar(200) NULL,
+                Thumbprint nvarchar(200) NULL,
+                CertificateSource nvarchar(200) NULL,
+                ForceEncryption bit NOT NULL CONSTRAINT DF_AssessmentTlsCertificates_ForceEncryption DEFAULT 0
+              );",
             "IF COL_LENGTH('AssessmentDatabases','CollationName') IS NULL ALTER TABLE AssessmentDatabases ADD CollationName nvarchar(128) NULL;",
             "IF COL_LENGTH('AssessmentDatabases','CreationDate') IS NULL ALTER TABLE AssessmentDatabases ADD CreationDate datetime2 NULL;",
             @"IF OBJECT_ID('InventorySyncBatches','U') IS NULL

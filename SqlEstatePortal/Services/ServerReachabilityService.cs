@@ -1,4 +1,5 @@
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using Microsoft.EntityFrameworkCore;
 using SqlEstatePortal.Data;
 using SqlEstatePortal.Models;
@@ -48,8 +49,8 @@ public class ServerReachabilityService
             },
             async (server, ct) =>
             {
-                var host = ResolvePingHost(server);
-                var reachable = await PingHostAsync(host, ct);
+                var endpoint = ResolveEndpoint(server);
+                var reachable = await ProbeAsync(endpoint, ct);
                 updates[server.TxId] = reachable;
             });
 
@@ -72,35 +73,64 @@ public class ServerReachabilityService
         return result;
     }
 
-    internal static string? ResolvePingHost(CtServer server)
+    /// <summary>The address and TCP port a probe should target, plus whether a named instance was specified.</summary>
+    internal readonly record struct ServerEndpoint(string? Host, int Port, bool NamedInstance);
+
+    internal const int DefaultSqlPort = 1433;
+
+    internal static ServerEndpoint ResolveEndpoint(CtServer server)
     {
-        if (!string.IsNullOrWhiteSpace(server.IpAddress))
-            return server.IpAddress.Trim();
+        var raw = FirstUsable(server.IpAddress, server.Fqdn, server.ServerName);
+        if (raw == null)
+            return new ServerEndpoint(null, DefaultSqlPort, false);
 
-        if (!string.IsNullOrWhiteSpace(server.Fqdn))
-            return StripInstance(server.Fqdn.Trim());
+        var value = raw.Trim();
+        var port = DefaultSqlPort;
 
-        if (!string.IsNullOrWhiteSpace(server.ServerName))
-            return StripInstance(server.ServerName.Trim());
+        // "host,1433" - an explicit port always wins.
+        var comma = value.IndexOf(',');
+        if (comma >= 0)
+        {
+            var portText = value[(comma + 1)..].Trim();
+            if (int.TryParse(portText, out var parsed) && parsed is > 0 and <= 65535)
+                port = parsed;
+            value = value[..comma].Trim();
+        }
+
+        // "host\INSTANCE" - a named instance listens on a dynamic port brokered by
+        // SQL Browser, so a 1433 probe proves nothing; remember that for the fallback.
+        var namedInstance = false;
+        var slash = value.IndexOf('\\');
+        if (slash >= 0)
+        {
+            namedInstance = comma < 0;
+            value = value[..slash].Trim();
+        }
+
+        return new ServerEndpoint(value, port, namedInstance);
+    }
+
+    private static string? FirstUsable(params string?[] candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            if (!string.IsNullOrWhiteSpace(candidate))
+                return candidate;
+        }
 
         return null;
     }
 
-    private static string StripInstance(string value)
+    /// <summary>
+    /// Decides whether the estate can actually reach a SQL instance.
+    /// A TCP connect on the SQL port is tried first, because that is what an assessment
+    /// needs and because managed endpoints (Azure SQL, load balancers, hardened hosts)
+    /// answer on 1433 while silently dropping ICMP. Ping is kept as a fallback for named
+    /// instances on dynamic ports and for hosts that block 1433 from the portal.
+    /// </summary>
+    private static async Task<bool> ProbeAsync(ServerEndpoint endpoint, CancellationToken cancellationToken)
     {
-        var comma = value.IndexOf(',');
-        if (comma >= 0)
-            value = value[..comma].Trim();
-
-        var slash = value.IndexOf('\\');
-        if (slash >= 0)
-            value = value[..slash].Trim();
-
-        return value;
-    }
-
-    private static async Task<bool> PingHostAsync(string? host, CancellationToken cancellationToken)
-    {
+        var host = endpoint.Host;
         if (string.IsNullOrWhiteSpace(host))
             return false;
 
@@ -108,11 +138,48 @@ public class ServerReachabilityService
         if (host.Contains(' ') || host.Contains('/') || host.Contains('(') || host.StartsWith('.'))
             return false;
 
+        if (await TryTcpConnectAsync(host, endpoint.Port, TcpTimeoutMs, cancellationToken))
+            return true;
+
+        return await TryPingAsync(host, PingTimeoutMs, cancellationToken);
+    }
+
+    private const int TcpTimeoutMs = 3000;
+    private const int PingTimeoutMs = 2000;
+
+    private static async Task<bool> TryTcpConnectAsync(string host, int port, int timeoutMs, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(timeoutMs);
+
+            await client.ConnectAsync(host, port, timeout.Token);
+            return client.Connected;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Timeout, refused, DNS failure - all mean "not reachable on this port".
+            return false;
+        }
+    }
+
+    private static async Task<bool> TryPingAsync(string host, int timeoutMs, CancellationToken cancellationToken)
+    {
         try
         {
             using var ping = new Ping();
-            var reply = await ping.SendPingAsync(host, 2000);
+            var reply = await ping.SendPingAsync(host, timeoutMs);
             return reply.Status == IPStatus.Success;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception)
         {

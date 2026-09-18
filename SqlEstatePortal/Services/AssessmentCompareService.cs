@@ -46,6 +46,31 @@ public class AssessmentCompareService
         vm.ConfigsDiff = BuildConfigsDiff(baseRun, targetRun);
         vm.ChangedConfigsCount = vm.ConfigsDiff.Count;
 
+        // 7. Linked Servers Diff
+        vm.LinkedServersDiff = BuildLinkedServersDiff(baseRun, targetRun);
+        vm.NewLinkedServersCount = vm.LinkedServersDiff.Count(l => l.Status == "New");
+        vm.RemovedLinkedServersCount = vm.LinkedServersDiff.Count(l => l.Status == "Removed");
+        vm.ChangedLinkedServersCount = vm.LinkedServersDiff.Count(l => l.Status == "Changed");
+
+        // 8. SQL Logins Diff
+        vm.SqlLoginsDiff = BuildSqlLoginsDiff(baseRun, targetRun);
+        vm.NewSqlLoginsCount = vm.SqlLoginsDiff.Count(l => l.Status == "New");
+        vm.RemovedSqlLoginsCount = vm.SqlLoginsDiff.Count(l => l.Status == "Removed");
+        vm.ChangedSqlLoginsCount = vm.SqlLoginsDiff.Count(l => l.Status == "Changed");
+
+        // 9. Availability Groups Diff
+        vm.AvailabilityGroupsDiff = BuildAvailabilityGroupsDiff(baseRun, targetRun);
+        vm.NewAvailabilityGroupsCount = vm.AvailabilityGroupsDiff.Count(g => g.Status == "New");
+        vm.RemovedAvailabilityGroupsCount = vm.AvailabilityGroupsDiff.Count(g => g.Status == "Removed");
+        vm.ChangedAvailabilityGroupsCount = vm.AvailabilityGroupsDiff.Count(g => g.Status == "Changed");
+
+        // 10. Certificates Diff
+        vm.CertificatesDiff = BuildCertificatesDiff(baseRun, targetRun);
+        vm.NewCertificatesCount = vm.CertificatesDiff.Count(c => c.Status == "New");
+        vm.RemovedCertificatesCount = vm.CertificatesDiff.Count(c => c.Status == "Removed");
+        vm.ChangedCertificatesCount = vm.CertificatesDiff.Count(c => c.Status == "Changed");
+        vm.ExpiringCertificatesCount = vm.CertificatesDiff.Count(c => c.IsExpiring);
+
         return vm;
     }
 
@@ -498,5 +523,377 @@ public class AssessmentCompareService
         }
 
         return result.OrderBy(r => r.ServerName).ThenBy(r => r.ConfigName).ToList();
+    }
+
+    private static List<CompareLinkedServerRow> BuildLinkedServersDiff(AssessmentRun a, AssessmentRun b)
+    {
+        string Key(AssessmentLinkedServer l) =>
+            $"{l.ServerName.Trim()}|{l.LinkedServerName.Trim()}".ToLowerInvariant();
+
+        var baseDict = a.LinkedServers
+            .GroupBy(Key)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var targetDict = b.LinkedServers
+            .GroupBy(Key)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var result = new List<CompareLinkedServerRow>();
+
+        foreach (var kvp in targetDict)
+        {
+            var tl = kvp.Value;
+
+            if (!baseDict.TryGetValue(kvp.Key, out var bl))
+            {
+                result.Add(new CompareLinkedServerRow
+                {
+                    Status = "New",
+                    ServerName = tl.ServerName,
+                    LinkedServerName = tl.LinkedServerName,
+                    TargetDataSource = tl.DataSource,
+                    TargetProvider = tl.Provider,
+                    TargetRemoteLoginEnabled = tl.IsRemoteLoginEnabled,
+                    TargetRpcOutEnabled = tl.IsRpcOutEnabled
+                });
+                continue;
+            }
+
+            var changes = new List<string>();
+
+            if (!string.Equals(bl.DataSource ?? "", tl.DataSource ?? "", StringComparison.OrdinalIgnoreCase))
+                changes.Add($"Data source: {bl.DataSource ?? "-"} → {tl.DataSource ?? "-"}");
+
+            if (!string.Equals(bl.Provider ?? "", tl.Provider ?? "", StringComparison.OrdinalIgnoreCase))
+                changes.Add($"Provider: {bl.Provider ?? "-"} → {tl.Provider ?? "-"}");
+
+            if (bl.IsRemoteLoginEnabled != tl.IsRemoteLoginEnabled)
+                changes.Add($"Remote login: {(bl.IsRemoteLoginEnabled ? "Yes" : "No")} → {(tl.IsRemoteLoginEnabled ? "Yes" : "No")}");
+
+            if (bl.IsRpcOutEnabled != tl.IsRpcOutEnabled)
+                changes.Add($"RPC out: {(bl.IsRpcOutEnabled ? "Yes" : "No")} → {(tl.IsRpcOutEnabled ? "Yes" : "No")}");
+
+            if (changes.Count == 0)
+                continue;
+
+            result.Add(new CompareLinkedServerRow
+            {
+                Status = "Changed",
+                ServerName = tl.ServerName,
+                LinkedServerName = tl.LinkedServerName,
+                BaseDataSource = bl.DataSource,
+                TargetDataSource = tl.DataSource,
+                BaseProvider = bl.Provider,
+                TargetProvider = tl.Provider,
+                BaseRemoteLoginEnabled = bl.IsRemoteLoginEnabled,
+                TargetRemoteLoginEnabled = tl.IsRemoteLoginEnabled,
+                BaseRpcOutEnabled = bl.IsRpcOutEnabled,
+                TargetRpcOutEnabled = tl.IsRpcOutEnabled,
+                Changes = changes
+            });
+        }
+
+        foreach (var kvp in baseDict)
+        {
+            if (targetDict.ContainsKey(kvp.Key))
+                continue;
+
+            var bl = kvp.Value;
+            result.Add(new CompareLinkedServerRow
+            {
+                Status = "Removed",
+                ServerName = bl.ServerName,
+                LinkedServerName = bl.LinkedServerName,
+                BaseDataSource = bl.DataSource,
+                BaseProvider = bl.Provider,
+                BaseRemoteLoginEnabled = bl.IsRemoteLoginEnabled,
+                BaseRpcOutEnabled = bl.IsRpcOutEnabled
+            });
+        }
+
+        return result
+            .OrderBy(r => r.ServerName)
+            .ThenBy(r => r.LinkedServerName)
+            .ToList();
+    }
+
+    private static List<CompareSqlLoginRow> BuildSqlLoginsDiff(AssessmentRun a, AssessmentRun b)
+    {
+        string Key(AssessmentSqlLogin l) =>
+            $"{l.ServerName.Trim()}|{l.LoginName.Trim()}".ToLowerInvariant();
+
+        static string YesNo(bool v) => v ? "Yes" : "No";
+
+        var baseDict = a.SqlLogins.GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
+        var targetDict = b.SqlLogins.GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
+
+        var result = new List<CompareSqlLoginRow>();
+
+        foreach (var kvp in targetDict)
+        {
+            var tl = kvp.Value;
+
+            if (!baseDict.TryGetValue(kvp.Key, out var bl))
+            {
+                result.Add(new CompareSqlLoginRow
+                {
+                    Status = "New",
+                    ServerName = tl.ServerName,
+                    LoginName = tl.LoginName,
+                    TargetIsDisabled = tl.IsDisabled,
+                    TargetIsSysadmin = tl.IsSysadmin,
+                    TargetIsPolicyChecked = tl.IsPolicyChecked,
+                    TargetIsExpirationChecked = tl.IsExpirationChecked
+                });
+                continue;
+            }
+
+            var changes = new List<string>();
+
+            if (bl.IsDisabled != tl.IsDisabled)
+                changes.Add($"Disabled: {YesNo(bl.IsDisabled)} → {YesNo(tl.IsDisabled)}");
+
+            if (bl.IsSysadmin != tl.IsSysadmin)
+                changes.Add($"Sysadmin: {YesNo(bl.IsSysadmin)} → {YesNo(tl.IsSysadmin)}");
+
+            if (bl.IsPolicyChecked != tl.IsPolicyChecked)
+                changes.Add($"Policy checked: {YesNo(bl.IsPolicyChecked)} → {YesNo(tl.IsPolicyChecked)}");
+
+            if (bl.IsExpirationChecked != tl.IsExpirationChecked)
+                changes.Add($"Expiration checked: {YesNo(bl.IsExpirationChecked)} → {YesNo(tl.IsExpirationChecked)}");
+
+            if (changes.Count == 0)
+                continue;
+
+            result.Add(new CompareSqlLoginRow
+            {
+                Status = "Changed",
+                ServerName = tl.ServerName,
+                LoginName = tl.LoginName,
+                BaseIsDisabled = bl.IsDisabled,
+                TargetIsDisabled = tl.IsDisabled,
+                BaseIsSysadmin = bl.IsSysadmin,
+                TargetIsSysadmin = tl.IsSysadmin,
+                BaseIsPolicyChecked = bl.IsPolicyChecked,
+                TargetIsPolicyChecked = tl.IsPolicyChecked,
+                BaseIsExpirationChecked = bl.IsExpirationChecked,
+                TargetIsExpirationChecked = tl.IsExpirationChecked,
+                Changes = changes
+            });
+        }
+
+        foreach (var kvp in baseDict)
+        {
+            if (targetDict.ContainsKey(kvp.Key))
+                continue;
+
+            var bl = kvp.Value;
+            result.Add(new CompareSqlLoginRow
+            {
+                Status = "Removed",
+                ServerName = bl.ServerName,
+                LoginName = bl.LoginName,
+                BaseIsDisabled = bl.IsDisabled,
+                BaseIsSysadmin = bl.IsSysadmin,
+                BaseIsPolicyChecked = bl.IsPolicyChecked,
+                BaseIsExpirationChecked = bl.IsExpirationChecked
+            });
+        }
+
+        return result
+            .OrderBy(r => r.ServerName)
+            .ThenBy(r => r.LoginName)
+            .ToList();
+    }
+
+    private static List<CompareAvailabilityGroupRow> BuildAvailabilityGroupsDiff(AssessmentRun a, AssessmentRun b)
+    {
+        string Key(AssessmentAvailabilityGroup g) =>
+            $"{g.ServerName.Trim()}|{g.AgName.Trim()}|{(g.ReplicaServerName ?? string.Empty).Trim()}".ToLowerInvariant();
+
+        var baseDict = a.AvailabilityGroups.GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
+        var targetDict = b.AvailabilityGroups.GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
+
+        var result = new List<CompareAvailabilityGroupRow>();
+
+        foreach (var kvp in targetDict)
+        {
+            var tg = kvp.Value;
+
+            if (!baseDict.TryGetValue(kvp.Key, out var bg))
+            {
+                result.Add(new CompareAvailabilityGroupRow
+                {
+                    Status = "New",
+                    ServerName = tg.ServerName,
+                    AgName = tg.AgName,
+                    ReplicaServerName = tg.ReplicaServerName,
+                    TargetRoleDesc = tg.RoleDesc,
+                    TargetOperationalStateDesc = tg.OperationalStateDesc,
+                    TargetConnectedStateDesc = tg.ConnectedStateDesc,
+                    TargetSynchronizationHealthDesc = tg.SynchronizationHealthDesc
+                });
+                continue;
+            }
+
+            var changes = new List<string>();
+
+            void Compare(string label, string? oldValue, string? newValue)
+            {
+                if (!string.Equals(oldValue ?? "", newValue ?? "", StringComparison.OrdinalIgnoreCase))
+                    changes.Add($"{label}: {oldValue ?? "-"} → {newValue ?? "-"}");
+            }
+
+            Compare("Role", bg.RoleDesc, tg.RoleDesc);
+            Compare("Operational state", bg.OperationalStateDesc, tg.OperationalStateDesc);
+            Compare("Connected state", bg.ConnectedStateDesc, tg.ConnectedStateDesc);
+            Compare("Synchronisation health", bg.SynchronizationHealthDesc, tg.SynchronizationHealthDesc);
+
+            if (changes.Count == 0)
+                continue;
+
+            result.Add(new CompareAvailabilityGroupRow
+            {
+                Status = "Changed",
+                ServerName = tg.ServerName,
+                AgName = tg.AgName,
+                ReplicaServerName = tg.ReplicaServerName,
+                BaseRoleDesc = bg.RoleDesc,
+                TargetRoleDesc = tg.RoleDesc,
+                BaseOperationalStateDesc = bg.OperationalStateDesc,
+                TargetOperationalStateDesc = tg.OperationalStateDesc,
+                BaseConnectedStateDesc = bg.ConnectedStateDesc,
+                TargetConnectedStateDesc = tg.ConnectedStateDesc,
+                BaseSynchronizationHealthDesc = bg.SynchronizationHealthDesc,
+                TargetSynchronizationHealthDesc = tg.SynchronizationHealthDesc,
+                Changes = changes
+            });
+        }
+
+        foreach (var kvp in baseDict)
+        {
+            if (targetDict.ContainsKey(kvp.Key))
+                continue;
+
+            var bg = kvp.Value;
+            result.Add(new CompareAvailabilityGroupRow
+            {
+                Status = "Removed",
+                ServerName = bg.ServerName,
+                AgName = bg.AgName,
+                ReplicaServerName = bg.ReplicaServerName,
+                BaseRoleDesc = bg.RoleDesc,
+                BaseOperationalStateDesc = bg.OperationalStateDesc,
+                BaseConnectedStateDesc = bg.ConnectedStateDesc,
+                BaseSynchronizationHealthDesc = bg.SynchronizationHealthDesc
+            });
+        }
+
+        return result
+            .OrderBy(r => r.ServerName)
+            .ThenBy(r => r.AgName)
+            .ThenBy(r => r.ReplicaServerName)
+            .ToList();
+    }
+
+    private const int CertificateExpiryWarningDays = 90;
+
+    private static List<CompareCertificateRow> BuildCertificatesDiff(AssessmentRun a, AssessmentRun b)
+    {
+        string Key(AssessmentCertificate c) =>
+            $"{c.ServerName.Trim()}|{c.CertificateName.Trim()}".ToLowerInvariant();
+
+        static bool Expiring(AssessmentCertificate c) =>
+            c.DaysToExpiry.HasValue && c.DaysToExpiry.Value <= CertificateExpiryWarningDays;
+
+        var baseDict = a.Certificates.GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
+        var targetDict = b.Certificates.GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
+
+        var result = new List<CompareCertificateRow>();
+
+        foreach (var kvp in targetDict)
+        {
+            var tc = kvp.Value;
+
+            if (!baseDict.TryGetValue(kvp.Key, out var bc))
+            {
+                result.Add(new CompareCertificateRow
+                {
+                    Status = "New",
+                    ServerName = tc.ServerName,
+                    CertificateName = tc.CertificateName,
+                    Thumbprint = tc.Thumbprint,
+                    TargetExpiryDate = tc.ExpiryDate,
+                    TargetDaysToExpiry = tc.DaysToExpiry,
+                    TargetProtectedDatabases = tc.ProtectedDatabases,
+                    IsExpiring = Expiring(tc)
+                });
+                continue;
+            }
+
+            var changes = new List<string>();
+
+            if (bc.ExpiryDate != tc.ExpiryDate)
+                changes.Add($"Expiry: {bc.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-"} → {tc.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-"}");
+
+            if (!string.Equals(bc.Thumbprint ?? "", tc.Thumbprint ?? "", StringComparison.OrdinalIgnoreCase))
+                changes.Add("Thumbprint changed (certificate was rotated)");
+
+            if (!string.Equals(bc.ProtectedDatabases ?? "", tc.ProtectedDatabases ?? "", StringComparison.OrdinalIgnoreCase))
+                changes.Add($"Protects: {bc.ProtectedDatabases ?? "-"} → {tc.ProtectedDatabases ?? "-"}");
+
+            if (!string.Equals(bc.Subject ?? "", tc.Subject ?? "", StringComparison.OrdinalIgnoreCase))
+                changes.Add($"Subject: {bc.Subject ?? "-"} → {tc.Subject ?? "-"}");
+
+            // Surface a certificate that has crossed into the warning window even
+            // when nothing about its definition changed.
+            var crossedThreshold = !Expiring(bc) && Expiring(tc);
+
+            if (changes.Count == 0 && !crossedThreshold)
+                continue;
+
+            if (crossedThreshold && changes.Count == 0)
+                changes.Add($"Now {tc.DaysToExpiry} day(s) from expiry");
+
+            result.Add(new CompareCertificateRow
+            {
+                Status = "Changed",
+                ServerName = tc.ServerName,
+                CertificateName = tc.CertificateName,
+                Thumbprint = tc.Thumbprint,
+                BaseExpiryDate = bc.ExpiryDate,
+                TargetExpiryDate = tc.ExpiryDate,
+                BaseDaysToExpiry = bc.DaysToExpiry,
+                TargetDaysToExpiry = tc.DaysToExpiry,
+                BaseProtectedDatabases = bc.ProtectedDatabases,
+                TargetProtectedDatabases = tc.ProtectedDatabases,
+                IsExpiring = Expiring(tc),
+                Changes = changes
+            });
+        }
+
+        foreach (var kvp in baseDict)
+        {
+            if (targetDict.ContainsKey(kvp.Key))
+                continue;
+
+            var bc = kvp.Value;
+            result.Add(new CompareCertificateRow
+            {
+                Status = "Removed",
+                ServerName = bc.ServerName,
+                CertificateName = bc.CertificateName,
+                Thumbprint = bc.Thumbprint,
+                BaseExpiryDate = bc.ExpiryDate,
+                BaseDaysToExpiry = bc.DaysToExpiry,
+                BaseProtectedDatabases = bc.ProtectedDatabases
+            });
+        }
+
+        return result
+            .OrderBy(r => r.TargetDaysToExpiry ?? r.BaseDaysToExpiry ?? int.MaxValue)
+            .ThenBy(r => r.ServerName)
+            .ThenBy(r => r.CertificateName)
+            .ToList();
     }
 }

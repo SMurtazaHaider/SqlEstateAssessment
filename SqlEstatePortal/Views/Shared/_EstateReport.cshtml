@@ -19,6 +19,10 @@
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-waits" type="button">Top waits</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sysadmins" type="button">Sysadmins</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-jobs" type="button">SQL Agent jobs</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-linkedservers" type="button">Linked servers</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sqllogins" type="button">SQL logins</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-availabilitygroups" type="button">Availability groups</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-certificates" type="button">Certificates</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-configure" type="button">sp_configure</button></li>
     </ul>
 
@@ -243,6 +247,188 @@
                 }
                 </tbody>
             </table>
+        </div>
+
+        <div class="tab-pane fade" id="tab-linkedservers">
+            <p class="muted">Linked server definitions from <code>sys.servers</code> (<code>is_linked = 1</code>) on each assessed instance. RPC out and remote login widen the blast radius of a compromised instance &mdash; review any that are enabled.</p>
+            @if (!Model.LinkedServers.Any())
+            {
+                <p class="muted">No linked servers found on the assessed instances.</p>
+            }
+            else
+            {
+                <table class="table table-sm">
+                    <thead>
+                        @await Html.PartialAsync("_ColumnFilters", new[]
+                        {
+                            "Server", "Linked server", "Data source", "Provider", "Remote login", "RPC out"
+                        })
+                    </thead>
+                    <tbody>
+                    @foreach (var ls in Model.LinkedServers.OrderBy(x => x.ServerName).ThenBy(x => x.LinkedServerName))
+                    {
+                        <tr data-server="@ls.ServerName">
+                            <td>@ls.ServerName</td>
+                            <td>@ls.LinkedServerName</td>
+                            <td>@ls.DataSource</td>
+                            <td>@ls.Provider</td>
+                            <td>@(ls.IsRemoteLoginEnabled ? "Yes" : "No")</td>
+                            <td>@(ls.IsRpcOutEnabled ? "Yes" : "No")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <div class="tab-pane fade" id="tab-sqllogins">
+            <p class="muted">SQL Server authentication logins from <code>sys.sql_logins</code>. Logins without password policy or expiration enforcement, and any sysadmin, are worth reviewing.</p>
+            @if (!Model.SqlLogins.Any())
+            {
+                <p class="muted">No SQL logins were collected for the assessed instances.</p>
+            }
+            else
+            {
+                <table class="table table-sm">
+                    <thead>
+                        @await Html.PartialAsync("_ColumnFilters", new[]
+                        {
+                            "Server", "Login", "Disabled", "Sysadmin", "Policy checked", "Expiration checked", "Created", "Modified"
+                        })
+                    </thead>
+                    <tbody>
+                    @foreach (var lg in Model.SqlLogins.OrderBy(x => x.ServerName).ThenBy(x => x.LoginName))
+                    {
+                        <tr data-server="@lg.ServerName">
+                            <td>@lg.ServerName</td>
+                            <td>@lg.LoginName</td>
+                            <td>@(lg.IsDisabled ? "Yes" : "No")</td>
+                            <td>@(lg.IsSysadmin ? "Yes" : "No")</td>
+                            <td>@(lg.IsPolicyChecked ? "Yes" : "No")</td>
+                            <td>@(lg.IsExpirationChecked ? "Yes" : "No")</td>
+                            <td>@(lg.CreateDate?.ToString("yyyy-MM-dd") ?? "")</td>
+                            <td>@(lg.ModifyDate?.ToString("yyyy-MM-dd") ?? "")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <div class="tab-pane fade" id="tab-availabilitygroups">
+            <p class="muted">Always On availability groups and their replicas, from <code>sys.availability_groups</code> joined to <code>sys.dm_hadr_availability_replica_states</code>.</p>
+            @if (!Model.AvailabilityGroups.Any())
+            {
+                <p class="muted">No availability groups found on the assessed instances.</p>
+            }
+            else
+            {
+                <table class="table table-sm">
+                    <thead>
+                        @await Html.PartialAsync("_ColumnFilters", new[]
+                        {
+                            "Server", "Availability group", "Replica", "Role", "Operational state", "Connected state", "Synchronisation health"
+                        })
+                    </thead>
+                    <tbody>
+                    @foreach (var ag in Model.AvailabilityGroups.OrderBy(x => x.ServerName).ThenBy(x => x.AgName).ThenBy(x => x.ReplicaServerName))
+                    {
+                        <tr data-server="@ag.ServerName">
+                            <td>@ag.ServerName</td>
+                            <td>@ag.AgName</td>
+                            <td>@ag.ReplicaServerName</td>
+                            <td>@ag.RoleDesc</td>
+                            <td>@ag.OperationalStateDesc</td>
+                            <td>@ag.ConnectedStateDesc</td>
+                            <td>@ag.SynchronizationHealthDesc</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <div class="tab-pane fade" id="tab-certificates">
+            <h3 class="section-title">Database certificates</h3>
+            <p class="muted">Certificates from <code>sys.certificates</code>, matched to the databases whose encryption key they protect. Expiry is measured as at the time of the run.</p>
+            @if (!Model.Certificates.Any())
+            {
+                <p class="muted">No certificates found on the assessed instances.</p>
+            }
+            else
+            {
+                <table class="table table-sm">
+                    <thead>
+                        @await Html.PartialAsync("_ColumnFilters", new[]
+                        {
+                            "Server", "Certificate", "Subject", "Issuer", "Starts", "Expires", "Days to expiry", "Protects", "Private key", "Thumbprint"
+                        })
+                    </thead>
+                    <tbody>
+                    @foreach (var c in Model.Certificates.OrderBy(x => x.DaysToExpiry ?? int.MaxValue).ThenBy(x => x.ServerName))
+                    {
+                        <tr data-server="@c.ServerName">
+                            <td>@c.ServerName</td>
+                            <td>@c.CertificateName</td>
+                            <td>@c.Subject</td>
+                            <td>@c.IssuerName</td>
+                            <td>@(c.StartDate?.ToString("yyyy-MM-dd") ?? "")</td>
+                            <td>@(c.ExpiryDate?.ToString("yyyy-MM-dd") ?? "")</td>
+                            <td>
+                                @if (c.DaysToExpiry is int d)
+                                {
+                                    if (d < 0)
+                                    {
+                                        <span class="server-status-text server-status-offline">Expired @(Math.Abs(d)) d ago</span>
+                                    }
+                                    else if (d <= 30)
+                                    {
+                                        <span class="server-status-text server-status-offline">@d</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@d</span>
+                                    }
+                                }
+                            </td>
+                            <td>@c.ProtectedDatabases</td>
+                            <td>@c.PrivateKeyEncryption</td>
+                            <td><code>@c.Thumbprint</code></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+
+            <h3 class="section-title">TLS / connection certificates</h3>
+            <p class="muted">The certificate each instance presents for encrypted client connections, read from <code>SuperSocketNetLib</code>. A blank thumbprint means SQL Server is self-signing.</p>
+            @if (!Model.TlsCertificates.Any())
+            {
+                <p class="muted">No TLS certificate information was collected. The collector account may not have rights to read the instance registry keys.</p>
+            }
+            else
+            {
+                <table class="table table-sm">
+                    <thead>
+                        @await Html.PartialAsync("_ColumnFilters", new[]
+                        {
+                            "Server", "Instance", "Source", "Force encryption", "Thumbprint"
+                        })
+                    </thead>
+                    <tbody>
+                    @foreach (var t in Model.TlsCertificates.OrderBy(x => x.ServerName))
+                    {
+                        <tr data-server="@t.ServerName">
+                            <td>@t.ServerName</td>
+                            <td>@t.InstanceName</td>
+                            <td>@t.CertificateSource</td>
+                            <td>@(t.ForceEncryption ? "Yes" : "No")</td>
+                            <td><code>@(string.IsNullOrWhiteSpace(t.Thumbprint) ? "—" : t.Thumbprint)</code></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
         </div>
 
         <div class="tab-pane fade" id="tab-configure">

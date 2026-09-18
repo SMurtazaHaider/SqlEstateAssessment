@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Read-only SQL Server estate assessment. Never modifies data, schemas, or configuration.
@@ -605,6 +605,78 @@ SELECT DB_NAME(database_id) AS database_name, file_id, page_id, event_type, erro
 FROM msdb.dbo.suspect_pages;
 '@
 
+$QueryCertificates = @'
+SET NOCOUNT ON;
+
+DECLARE @deks TABLE (thumbprint varbinary(20), database_name sysname);
+
+-- sys.dm_database_encryption_keys needs VIEW SERVER STATE. If it is denied we
+-- still want the certificate inventory, just without the protected-database map.
+BEGIN TRY
+    INSERT INTO @deks (thumbprint, database_name)
+    SELECT dek.encryptor_thumbprint, DB_NAME(dek.database_id)
+    FROM sys.dm_database_encryption_keys AS dek;
+END TRY
+BEGIN CATCH
+    DELETE FROM @deks;
+END CATCH;
+
+SELECT
+    DB_NAME()                                   AS database_name,
+    c.name                                      AS certificate_name,
+    c.subject,
+    c.issuer_name,
+    c.start_date,
+    c.expiry_date,
+    c.pvt_key_encryption_type_desc              AS pvt_key_encryption,
+    CONVERT(nvarchar(200), c.thumbprint, 1)     AS thumbprint,
+    STUFF((
+        SELECT N', ' + d.database_name
+        FROM @deks AS d
+        WHERE d.thumbprint = c.thumbprint
+        ORDER BY d.database_name
+        FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 2, N'') AS protected_databases,
+    DATEDIFF(day, GETDATE(), c.expiry_date)     AS days_to_expiry
+FROM master.sys.certificates AS c
+ORDER BY c.expiry_date;
+'@
+
+$QueryTlsCertificate = @'
+SET NOCOUNT ON;
+
+DECLARE @instance    sysname       = CONVERT(sysname, SERVERPROPERTY(N'InstanceName'));
+DECLARE @thumbprint  nvarchar(200);
+DECLARE @forceEncrypt int;
+
+IF @instance IS NULL SET @instance = N'MSSQLSERVER';
+
+BEGIN TRY
+    EXEC master.dbo.xp_instance_regread
+        N'HKEY_LOCAL_MACHINE',
+        N'Software\Microsoft\MSSQLServer\MSSQLServer\SuperSocketNetLib',
+        N'Certificate',
+        @thumbprint OUTPUT;
+
+    EXEC master.dbo.xp_instance_regread
+        N'HKEY_LOCAL_MACHINE',
+        N'Software\Microsoft\MSSQLServer\MSSQLServer\SuperSocketNetLib',
+        N'ForceEncryption',
+        @forceEncrypt OUTPUT;
+END TRY
+BEGIN CATCH
+    SET @thumbprint = NULL;
+END CATCH;
+
+SELECT
+    @instance                                   AS instance_name,
+    NULLIF(LTRIM(RTRIM(@thumbprint)), N'')      AS thumbprint,
+    CASE WHEN ISNULL(@forceEncrypt, 0) = 1 THEN 1 ELSE 0 END AS force_encryption,
+    CASE WHEN NULLIF(LTRIM(RTRIM(@thumbprint)), N'') IS NULL
+         THEN N'Self-signed (auto-generated)'
+         ELSE N'Configured certificate'
+    END                                         AS certificate_source;
+'@
+
 $QueryLinkedServers = @'
 SELECT name, data_source, provider, is_linked, is_remote_login_enabled, is_rpc_out_enabled
 FROM sys.servers
@@ -667,6 +739,8 @@ function Assess-Server {
         AvailabilityGroups = @()
         SuspectPages       = @()
         LinkedServers      = @()
+        Certificates       = @()
+        TlsCertificate     = $null
         TraceFlags         = @()
         Cost               = $null
         Findings           = New-Object System.Collections.Generic.List[object]
@@ -989,6 +1063,51 @@ function Assess-Server {
         }
 
         $result.LinkedServers = @(Invoke-ReadOnlyQuery -Connection $conn -Name 'Linked' -Sql $QueryLinkedServers)
+
+        $certs = @(Invoke-ReadOnlyQuery -Connection $conn -Name 'Certificates' -Sql $QueryCertificates)
+        $result.Certificates = $certs
+        foreach ($cert in $certs) {
+            if ($null -eq $cert.expiry_date -or $cert.expiry_date -is [System.DBNull]) { continue }
+
+            $days = $null
+            if ($null -ne $cert.days_to_expiry -and $cert.days_to_expiry -isnot [System.DBNull]) {
+                $days = [int]$cert.days_to_expiry
+            }
+            if ($null -eq $days) { continue }
+
+            $protects = if ([string]::IsNullOrWhiteSpace([string]$cert.protected_databases)) {
+                'no databases'
+            } else {
+                "database(s) $($cert.protected_databases)"
+            }
+            $expiryText = ([datetime]$cert.expiry_date).ToString('yyyy-MM-dd')
+
+            if ($days -lt 0) {
+                Add-Finding -List $result.Findings -Server $ServerName -Severity Critical -Area 'Encryption' `
+                    -Finding "Certificate '$($cert.certificate_name)' expired on $expiryText ($([math]::Abs($days)) day(s) ago) and protects $protects." `
+                    -Recommendation 'Rotate the certificate immediately. An expired TDE certificate blocks restore and can prevent the database coming online after a failover.'
+            }
+            elseif ($days -le 30) {
+                Add-Finding -List $result.Findings -Server $ServerName -Severity High -Area 'Encryption' `
+                    -Finding "Certificate '$($cert.certificate_name)' expires on $expiryText (in $days day(s)) and protects $protects." `
+                    -Recommendation 'Schedule certificate rotation now and back up the new certificate and private key to secure storage.'
+            }
+            elseif ($days -le 90) {
+                Add-Finding -List $result.Findings -Server $ServerName -Severity Medium -Area 'Encryption' `
+                    -Finding "Certificate '$($cert.certificate_name)' expires on $expiryText (in $days day(s)) and protects $protects." `
+                    -Recommendation 'Plan certificate rotation within the current change window.'
+            }
+        }
+
+        $tls = @(Invoke-ReadOnlyQuery -Connection $conn -Name 'TlsCertificate' -Sql $QueryTlsCertificate)
+        if ($tls.Count -gt 0) {
+            $result.TlsCertificate = $tls[0]
+            if ([string]::IsNullOrWhiteSpace([string]$tls[0].thumbprint)) {
+                Add-Finding -List $result.Findings -Server $ServerName -Severity Low -Area 'Encryption' `
+                    -Finding 'No TLS certificate is configured for the instance; SQL Server is using an auto-generated self-signed certificate.' `
+                    -Recommendation 'Install a CA-issued certificate and configure it in SQL Server Configuration Manager if connection encryption is required.'
+            }
+        }
         $result.TraceFlags = @(Invoke-ReadOnlyQuery -Connection $conn -Name 'TraceFlags' -Sql $QueryTraceFlags)
 
         $sku = @(Invoke-ReadOnlyQuery -Connection $conn -Name 'SkuFeatures' -Sql $QueryEnterpriseFeatures)
@@ -1246,6 +1365,8 @@ function Write-Reports {
         $html += "<h3>Last backups</h3>" + (ConvertTo-HtmlTable @($s.Backups) @('DatabaseName','LastFullBackup','LastDifferentialBackup','LastLogBackup'))
         $html += "<h3>sp_configure</h3>" + (ConvertTo-HtmlTable @($s.Configuration) @('name','minimum','maximum','config_value','run_value','is_dynamic','is_advanced','description'))
         $html += "<h3>Availability groups</h3>" + (ConvertTo-HtmlTable @($s.AvailabilityGroups))
+        $html += "<h3>Certificates</h3>" + (ConvertTo-HtmlTable @($s.Certificates) @('certificate_name','subject','issuer_name','start_date','expiry_date','days_to_expiry','protected_databases','thumbprint'))
+        $html += "<h3>TLS certificate</h3>" + (ConvertTo-HtmlTable @($s.TlsCertificate))
         $html += "<h3>SQL Agent jobs</h3>" + (ConvertTo-HtmlTable @($s.Jobs) @('JobName','enabled','LastRunStatus','LastRun','Message'))
     }
 
@@ -1302,6 +1423,8 @@ $estate = @(foreach ($name in $serverList) {
             AvailabilityGroups = @()
             SuspectPages       = @()
             LinkedServers      = @()
+            Certificates       = @()
+            TlsCertificate     = $null
             TraceFlags         = @()
             Cost               = $null
             Findings           = @(

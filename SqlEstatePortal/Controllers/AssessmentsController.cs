@@ -105,6 +105,11 @@ public class AssessmentsController : Controller
             .Include(x => x.Sysadmins)
             .Include(x => x.Configurations)
             .Include(x => x.Backups)
+            .Include(x => x.LinkedServers)
+            .Include(x => x.SqlLogins)
+            .Include(x => x.AvailabilityGroups)
+            .Include(x => x.Certificates)
+            .Include(x => x.TlsCertificates)
             .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == id);
         if (run == null) return NotFound();
@@ -316,6 +321,11 @@ public class AssessmentsController : Controller
             .Include(x => x.Databases)
             .Include(x => x.Backups)
             .Include(x => x.Configurations)
+            .Include(x => x.LinkedServers)
+            .Include(x => x.SqlLogins)
+            .Include(x => x.AvailabilityGroups)
+            .Include(x => x.Certificates)
+            .Include(x => x.TlsCertificates)
             .AsSplitQuery()
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == baseRunId.Value, ct);
@@ -326,6 +336,11 @@ public class AssessmentsController : Controller
             .Include(x => x.Databases)
             .Include(x => x.Backups)
             .Include(x => x.Configurations)
+            .Include(x => x.LinkedServers)
+            .Include(x => x.SqlLogins)
+            .Include(x => x.AvailabilityGroups)
+            .Include(x => x.Certificates)
+            .Include(x => x.TlsCertificates)
             .AsSplitQuery()
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == targetRunId.Value, ct);

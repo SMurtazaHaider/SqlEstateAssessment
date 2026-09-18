@@ -27,6 +27,11 @@ public class AppDbContext : DbContext
     public DbSet<AssessmentSysadmin> AssessmentSysadmins => Set<AssessmentSysadmin>();
     public DbSet<AssessmentConfiguration> AssessmentConfigurations => Set<AssessmentConfiguration>();
     public DbSet<AssessmentBackup> AssessmentBackups => Set<AssessmentBackup>();
+    public DbSet<AssessmentLinkedServer> AssessmentLinkedServers => Set<AssessmentLinkedServer>();
+    public DbSet<AssessmentSqlLogin> AssessmentSqlLogins => Set<AssessmentSqlLogin>();
+    public DbSet<AssessmentAvailabilityGroup> AssessmentAvailabilityGroups => Set<AssessmentAvailabilityGroup>();
+    public DbSet<AssessmentCertificate> AssessmentCertificates => Set<AssessmentCertificate>();
+    public DbSet<AssessmentTlsCertificate> AssessmentTlsCertificates => Set<AssessmentTlsCertificate>();
     public DbSet<InventorySyncBatch> InventorySyncBatches => Set<InventorySyncBatch>();
     public DbSet<InventorySyncItem> InventorySyncItems => Set<InventorySyncItem>();
     public DbSet<InventorySyncField> InventorySyncFields => Set<InventorySyncField>();
@@ -121,6 +126,36 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<AssessmentBackup>()
             .HasOne(x => x.AssessmentRun)
             .WithMany(x => x.Backups)
+            .HasForeignKey(x => x.AssessmentRunId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<AssessmentLinkedServer>()
+            .HasOne(x => x.AssessmentRun)
+            .WithMany(x => x.LinkedServers)
+            .HasForeignKey(x => x.AssessmentRunId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<AssessmentSqlLogin>()
+            .HasOne(x => x.AssessmentRun)
+            .WithMany(x => x.SqlLogins)
+            .HasForeignKey(x => x.AssessmentRunId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<AssessmentAvailabilityGroup>()
+            .HasOne(x => x.AssessmentRun)
+            .WithMany(x => x.AvailabilityGroups)
+            .HasForeignKey(x => x.AssessmentRunId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<AssessmentCertificate>()
+            .HasOne(x => x.AssessmentRun)
+            .WithMany(x => x.Certificates)
+            .HasForeignKey(x => x.AssessmentRunId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<AssessmentTlsCertificate>()
+            .HasOne(x => x.AssessmentRun)
+            .WithMany(x => x.TlsCertificates)
             .HasForeignKey(x => x.AssessmentRunId)
             .OnDelete(DeleteBehavior.Cascade);
 

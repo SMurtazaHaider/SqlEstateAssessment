@@ -430,6 +430,95 @@ public class AssessmentRunnerService
                     LastLogBackup = GetDate(b, "LastLogBackup") ?? GetDate(b, "LastLog")
                 });
             }
+
+            foreach (var ls in Enumerate(s, "LinkedServers"))
+            {
+                var linkedName = FirstNonEmpty(GetString(ls, "name"), GetString(ls, "Name"));
+                if (string.IsNullOrWhiteSpace(linkedName))
+                    continue;
+
+                run.LinkedServers.Add(new AssessmentLinkedServer
+                {
+                    ServerName = serverName,
+                    LinkedServerName = linkedName,
+                    DataSource = NullIfEmpty(GetString(ls, "data_source")),
+                    Provider = NullIfEmpty(GetString(ls, "provider")),
+                    IsRemoteLoginEnabled = GetBool(ls, "is_remote_login_enabled"),
+                    IsRpcOutEnabled = GetBool(ls, "is_rpc_out_enabled")
+                });
+            }
+
+            foreach (var login in Enumerate(s, "SqlLogins"))
+            {
+                var loginName = FirstNonEmpty(GetString(login, "name"), GetString(login, "Name"));
+                if (string.IsNullOrWhiteSpace(loginName))
+                    continue;
+
+                run.SqlLogins.Add(new AssessmentSqlLogin
+                {
+                    ServerName = serverName,
+                    LoginName = loginName,
+                    IsDisabled = GetBool(login, "is_disabled"),
+                    IsPolicyChecked = GetBool(login, "is_policy_checked"),
+                    IsExpirationChecked = GetBool(login, "is_expiration_checked"),
+                    IsSysadmin = GetBool(login, "is_sysadmin") || GetInt(login, "is_sysadmin") == 1,
+                    CreateDate = GetDate(login, "create_date"),
+                    ModifyDate = GetDate(login, "modify_date")
+                });
+            }
+
+            foreach (var ag in Enumerate(s, "AvailabilityGroups"))
+            {
+                var agName = FirstNonEmpty(GetString(ag, "AgName"), GetString(ag, "ag_name"));
+                if (string.IsNullOrWhiteSpace(agName))
+                    continue;
+
+                run.AvailabilityGroups.Add(new AssessmentAvailabilityGroup
+                {
+                    ServerName = serverName,
+                    AgName = agName,
+                    ReplicaServerName = NullIfEmpty(GetString(ag, "replica_server_name")),
+                    RoleDesc = NullIfEmpty(GetString(ag, "role_desc")),
+                    OperationalStateDesc = NullIfEmpty(GetString(ag, "operational_state_desc")),
+                    ConnectedStateDesc = NullIfEmpty(GetString(ag, "connected_state_desc")),
+                    SynchronizationHealthDesc = NullIfEmpty(GetString(ag, "synchronization_health_desc"))
+                });
+            }
+
+            foreach (var cert in Enumerate(s, "Certificates"))
+            {
+                var certName = FirstNonEmpty(GetString(cert, "certificate_name"), GetString(cert, "CertificateName"));
+                if (string.IsNullOrWhiteSpace(certName))
+                    continue;
+
+                run.Certificates.Add(new AssessmentCertificate
+                {
+                    ServerName = serverName,
+                    DatabaseName = NullIfEmpty(GetString(cert, "database_name")),
+                    CertificateName = certName,
+                    Subject = NullIfEmpty(GetString(cert, "subject")),
+                    IssuerName = NullIfEmpty(GetString(cert, "issuer_name")),
+                    StartDate = GetDate(cert, "start_date"),
+                    ExpiryDate = GetDate(cert, "expiry_date"),
+                    DaysToExpiry = GetIntOrNull(cert, "days_to_expiry"),
+                    PrivateKeyEncryption = NullIfEmpty(GetString(cert, "pvt_key_encryption")),
+                    Thumbprint = NullIfEmpty(GetString(cert, "thumbprint")),
+                    ProtectedDatabases = NullIfEmpty(GetString(cert, "protected_databases"))
+                });
+            }
+
+            var tls = Obj(s, "TlsCertificate");
+            if (tls.ValueKind == JsonValueKind.Object)
+            {
+                run.TlsCertificates.Add(new AssessmentTlsCertificate
+                {
+                    ServerName = serverName,
+                    InstanceName = NullIfEmpty(GetString(tls, "instance_name")),
+                    Thumbprint = NullIfEmpty(GetString(tls, "thumbprint")),
+                    CertificateSource = NullIfEmpty(GetString(tls, "certificate_source")),
+                    ForceEncryption = GetBool(tls, "force_encryption") || GetInt(tls, "force_encryption") == 1
+                });
+            }
         }
 
         await _db.SaveChangesAsync(cancellationToken);
