@@ -1,0 +1,14 @@
+# One SQL Server per line. Comments start with #.
+# Use the same Server Name as Azure Data Studio / SSMS.
+
+# VM SQL Servers (Windows Authentication — same as ADS)
+#CTPCTA04VMSQL03
+#CTPCTA04VMSQL02
+#CTUCTA03VMSQL01
+
+# Local instances (uncomment if you also want these)
+MURTAZA\SQL2022
+MURTAZA\SQLEXPRESS
+
+# Azure SQL (Entra MFA) is not supported by this script yet:
+# ctphur02sql02.database.windows.net

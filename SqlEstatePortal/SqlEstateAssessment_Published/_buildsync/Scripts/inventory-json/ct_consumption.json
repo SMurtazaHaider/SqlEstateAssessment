@@ -1,0 +1,12 @@
+[
+{"type":"header","version":"5.2.2","comment":"Export to JSON plugin for PHPMyAdmin"},
+{"type":"database","name":"u927457459_m_localhost"},
+{"type":"table","name":"ct_consumption","database":"u927457459_m_localhost","data":
+[
+{"id":"1","consumption":"Consumption"},
+{"id":"2","consumption":"Internal & External"},
+{"id":"3","consumption":"Internal"},
+{"id":"4","consumption":"External"}
+]
+}
+]

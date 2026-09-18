@@ -1,0 +1,17 @@
+[
+{"type":"header","version":"5.2.2","comment":"Export to JSON plugin for PHPMyAdmin"},
+{"type":"database","name":"u927457459_m_localhost"},
+{"type":"table","name":"ct_status","database":"u927457459_m_localhost","data":
+[
+{"id":"1","application_status":"Inactive"},
+{"id":"2","application_status":"Unknown"},
+{"id":"3","application_status":"Limited"},
+{"id":"4","application_status":"Active"},
+{"id":"5","application_status":"Planning"},
+{"id":"6","application_status":"Delivery"},
+{"id":"7","application_status":"Under Review"},
+{"id":"8","application_status":"Removed"},
+{"id":"9","application_status":"EOL"}
+]
+}
+]

@@ -1,0 +1,14 @@
+[
+{"type":"header","version":"5.2.2","comment":"Export to JSON plugin for PHPMyAdmin"},
+{"type":"database","name":"u927457459_m_localhost"},
+{"type":"table","name":"ct_roadmap","database":"u927457459_m_localhost","data":
+[
+{"id":"1","time_roadmap":"Invest","value":"5","colour":"#00FF00"},
+{"id":"2","time_roadmap":"Tolerate","value":"4","colour":"#D9B300"},
+{"id":"3","time_roadmap":"Migrate","value":"3","colour":"#FF0000"},
+{"id":"4","time_roadmap":"Eliminate","value":"2","colour":"#000000"},
+{"id":"5","time_roadmap":"TBD","value":"1","colour":"#FFFFFF"},
+{"id":"6","time_roadmap":"N\/A","value":"0","colour":"#FFFFFF"}
+]
+}
+]

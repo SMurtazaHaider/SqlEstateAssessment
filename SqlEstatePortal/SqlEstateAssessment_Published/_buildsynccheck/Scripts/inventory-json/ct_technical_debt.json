@@ -1,0 +1,14 @@
+[
+{"type":"header","version":"5.2.2","comment":"Export to JSON plugin for PHPMyAdmin"},
+{"type":"database","name":"u927457459_m_localhost"},
+{"type":"table","name":"ct_technical_debt","database":"u927457459_m_localhost","data":
+[
+{"id":"1","technical_debt":"Very High","value":"5"},
+{"id":"2","technical_debt":"High","value":"4"},
+{"id":"3","technical_debt":"Medium","value":"3"},
+{"id":"4","technical_debt":"Low","value":"2"},
+{"id":"5","technical_debt":null,"value":"1"},
+{"id":"6","technical_debt":"N\/A","value":"0"}
+]
+}
+]

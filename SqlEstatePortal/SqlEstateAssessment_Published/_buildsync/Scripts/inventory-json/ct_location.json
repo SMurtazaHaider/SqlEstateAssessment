@@ -1,0 +1,31 @@
+[
+{"type":"header","version":"5.2.2","comment":"Export to JSON plugin for PHPMyAdmin"},
+{"type":"database","name":"u927457459_m_localhost"},
+{"type":"table","name":"ct_location","database":"u927457459_m_localhost","data":
+[
+{"id":"1","location":"Azure (CT)","platform":"CT Cloud"},
+{"id":"2","location":"AWS (CT)","platform":"CT Cloud"},
+{"id":"3","location":"Funtington","platform":"CT Office"},
+{"id":"4","location":"Kentucky","platform":"CT Office"},
+{"id":"5","location":"Minster Building","platform":"CT Office"},
+{"id":"6","location":"Turin","platform":"CT Office"},
+{"id":"7","location":"Equinix London","platform":"Data Centre"},
+{"id":"8","location":"Equinix Slough","platform":"Data Centre"},
+{"id":"9","location":"Cirion","platform":"Data Centre"},
+{"id":"10","location":"Iplan","platform":"Data Centre"},
+{"id":"11","location":"Cincinnati","platform":"CT Office"},
+{"id":"12","location":"Mobile","platform":"EUC"},
+{"id":"13","location":"Desktop","platform":"EUC"},
+{"id":"14","location":"Unknown","platform":"Unknown"},
+{"id":"15","location":"Office 365","platform":"Vendor Cloud"},
+{"id":"16","location":"AWS","platform":"Vendor Cloud"},
+{"id":"17","location":"Azure (External)","platform":"Vendor Cloud"},
+{"id":"18","location":"Azure (Microsoft)","platform":"Vendor Cloud"},
+{"id":"19","location":"DigitalOcean","platform":"Vendor Cloud"},
+{"id":"20","location":"Oracle","platform":"Vendor Cloud"},
+{"id":"21","location":"RackSpace","platform":"Vendor Cloud"},
+{"id":"22","location":"SaaS","platform":"Vendor Cloud"},
+{"id":"23","location":"Umbraco Cloud","platform":"Vendor Cloud"}
+]
+}
+]

@@ -1,0 +1,24 @@
+[
+{"type":"header","version":"5.2.2","comment":"Export to JSON plugin for PHPMyAdmin"},
+{"type":"database","name":"u927457459_m_localhost"},
+{"type":"table","name":"ct_business_process","database":"u927457459_m_localhost","data":
+[
+{"id":"1","business_process":"ST","description":"Server Tools","code":null},
+{"id":"2","business_process":"N\/A","description":"Not part of Business Process","code":null},
+{"id":"3","business_process":"BO","description":"Back Office Tools","code":null},
+{"id":"4","business_process":"ITR","description":"Issue to Resolution","code":null},
+{"id":"5","business_process":"MTO","description":"Market to Order","code":null},
+{"id":"6","business_process":"OTC","description":"Order to Cash","code":null},
+{"id":"7","business_process":"PTP","description":"Procure to Pay","code":null},
+{"id":"8","business_process":"RTR","description":"Record to Report","code":null},
+{"id":"9","business_process":"PTP","description":"Plan to Produce","code":null},
+{"id":"10","business_process":"ATR","description":"Acquire to Retire","code":null},
+{"id":"11","business_process":"PTI","description":"Plan to Inventory","code":null},
+{"id":"12","business_process":"FTD","description":"Forcast to Delivery","code":null},
+{"id":"13","business_process":"ITO","description":"Idea to Offering","code":null},
+{"id":"14","business_process":"QTC","description":"Quote to Cash","code":null},
+{"id":"15","business_process":"HTR","description":"Hire to Retire","code":null},
+{"id":"16","business_process":"Unknown or Mix","description":"Unknown or Mix of processes","code":null}
+]
+}
+]

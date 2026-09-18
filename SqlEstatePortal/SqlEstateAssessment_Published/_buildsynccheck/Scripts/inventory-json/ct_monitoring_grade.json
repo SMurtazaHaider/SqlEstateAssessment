@@ -1,0 +1,11 @@
+[
+{"type":"header","version":"5.2.2","comment":"Export to JSON plugin for PHPMyAdmin"},
+{"type":"database","name":"u927457459_m_localhost"},
+{"type":"table","name":"ct_monitoring_grade","database":"u927457459_m_localhost","data":
+[
+{"id":"1","grade":"Full Coverage","description":"The application has comprehensive telemetry in place across all key components (infrastructure, application layer, integrations, and user activity). The logs and events are actively ingested into our central monitoring and alerting platform, with appropriate parsing, correlation, and alerting configured. This level of coverage supports timely detection, investigation, and response to security and operational incidents."},
+{"id":"2","grade":"Partial Coverage","description":"The application has some level of telemetry and monitoring, but coverage is incomplete. Gaps may exist in visibility across certain components (e.g., cloud services, third-party integrations, or application-specific logs), or telemetry may be available but not fully integrated into central monitoring or not effectively alerting on key events. Detection and response capabilities are present but limited."},
+{"id":"3","grade":"No Coverage","description":"The application lacks meaningful telemetry or monitoring integration. Logging may be minimal, siloed, or entirely absent, and there is no active visibility from a central security monitoring perspective. Incident detection and response for this system would rely on indirect signals or manual reporting, introducing significant risk."}
+]
+}
+]

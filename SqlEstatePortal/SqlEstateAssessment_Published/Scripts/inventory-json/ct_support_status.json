@@ -1,0 +1,13 @@
+[
+{"type":"header","version":"5.2.2","comment":"Export to JSON plugin for PHPMyAdmin"},
+{"type":"database","name":"u927457459_m_localhost"},
+{"type":"table","name":"ct_support_status","database":"u927457459_m_localhost","data":
+[
+{"id":"1","support_status":"Software Support Status"},
+{"id":"2","support_status":"Full Support"},
+{"id":"3","support_status":"Partial support"},
+{"id":"4","support_status":"No longer supported"},
+{"id":"5","support_status":"Inactive"}
+]
+}
+]
