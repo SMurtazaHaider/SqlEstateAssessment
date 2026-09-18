@@ -34,11 +34,13 @@
             @if (selected != null)
             {
                 <a class="btn btn-outline-secondary" asp-controller="Assessments" asp-action="Compare" asp-route-targetRunId="@selected.Id">Compare Assessments</a>
+                <a class="btn btn-outline-secondary" asp-controller="Assessments" asp-action="CompareServers">SQL QA Compare</a>
                 <a class="btn btn-outline-secondary" asp-controller="Assessments" asp-action="Details" asp-route-id="@selected.Id">Open report</a>
             }
             else
             {
                 <a class="btn btn-outline-secondary" asp-controller="Assessments" asp-action="Compare">Compare Assessments</a>
+                <a class="btn btn-outline-secondary" asp-controller="Assessments" asp-action="CompareServers">SQL QA Compare</a>
             }
         }
         @if (canRun)

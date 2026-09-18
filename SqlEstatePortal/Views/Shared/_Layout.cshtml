@@ -8,7 +8,18 @@
     var canTeam = User.Identity?.IsAuthenticated == true && await Permissions.HasAsync(User, AppModules.TeamMembers, "view");
     var canRoles = User.Identity?.IsAuthenticated == true && await Permissions.HasAsync(User, AppModules.Roles, "view");
     var controller = ViewContext.RouteData.Values["controller"]?.ToString();
-    string NavClass(string name) => string.Equals(controller, name, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    var action = ViewContext.RouteData.Values["action"]?.ToString();
+    string NavClass(string name, string? actionName = null)
+    {
+        if (!string.Equals(controller, name, StringComparison.OrdinalIgnoreCase))
+            return "";
+        if (!string.IsNullOrEmpty(actionName))
+            return string.Equals(action, actionName, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+        if (string.Equals(name, "Assessments", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(action, "CompareServers", StringComparison.OrdinalIgnoreCase))
+            return "";
+        return "active";
+    }
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -46,6 +57,10 @@
             <a class="nav-item @NavClass("Assessments")" asp-controller="Assessments" asp-action="Index">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H6v-2h6v2zm4-4H6v-2h10v2zm0-4H6V7h10v2z"/></svg>
                 <span class="nav-label">Assessments</span>
+            </a>
+            <a class="nav-item @NavClass("Assessments", "CompareServers")" asp-controller="Assessments" asp-action="CompareServers">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.01 14H2v2h7.01v3L13 15l-3.99-4v3zm5.98-1v-3H22V8h-7.01V5L11 9l3.99 4z"/></svg>
+                <span class="nav-label">SQL QA Compare</span>
             </a>
         }
         @if (canAssessments || canDatabases)

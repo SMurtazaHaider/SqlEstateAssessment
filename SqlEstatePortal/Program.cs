@@ -45,6 +45,7 @@ builder.Services.AddScoped<AssessmentRunnerService>();
 builder.Services.AddScoped<ServerReachabilityService>();
 builder.Services.AddScoped<InventorySyncService>();
 builder.Services.AddScoped<AssessmentCompareService>();
+builder.Services.AddScoped<ServerQaCompareService>();
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();

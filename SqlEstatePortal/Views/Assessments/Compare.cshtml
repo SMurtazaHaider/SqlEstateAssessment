@@ -19,6 +19,7 @@
         {
             <a class="btn btn-outline-secondary" asp-action="Details" asp-route-id="@baseRun.Id">Base Assessment (#@baseRun.Id)</a>
         }
+        <a class="btn btn-outline-secondary" asp-action="CompareServers">SQL QA Compare</a>
         <a class="btn btn-outline-secondary" asp-action="Index">All Assessments</a>
     </div>
 </div>
@@ -525,30 +526,3 @@ else
     </div>
 }
 
-@section Scripts {
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Findings status chip filtering
-            const chips = document.querySelectorAll('[data-diff-filter]');
-            const table = document.getElementById('compareFindingsTable');
-            if (table) {
-                const rows = table.querySelectorAll('tbody tr[data-diff-status]');
-                chips.forEach(function (chip) {
-                    chip.addEventListener('click', function () {
-                        chips.forEach(function (c) { c.classList.remove('active'); });
-                        chip.classList.add('active');
-                        const filter = chip.getAttribute('data-diff-filter') || '';
-                        rows.forEach(function (row) {
-                            const status = row.getAttribute('data-diff-status') || '';
-                            if (!filter || status === filter) {
-                                row.style.display = '';
-                            } else {
-                                row.style.display = 'none';
-                            }
-                        });
-                    });
-                });
-            }
-        });
-    </script>
-}

@@ -2320,3 +2320,96 @@ select.ss-native {
   font-size: 0.88rem;
   text-align: center;
 }
+
+.qa-summary-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.qa-summary-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e8eef4;
+  box-shadow: inset 0 0 0 1px rgba(31, 78, 121, 0.08);
+}
+
+.qa-summary-bar > span {
+  display: block;
+  min-width: 0;
+  height: 100%;
+}
+
+.qa-bar-yes { background: linear-gradient(180deg, #22c55e, #15803d); }
+.qa-bar-close { background: linear-gradient(180deg, #fbbf24, #d97706); }
+.qa-bar-no { background: linear-gradient(180deg, #f87171, #dc2626); }
+
+.qa-summary-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.qa-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.qa-tile:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(20, 55, 90, 0.1);
+}
+
+.qa-tile.active {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.qa-tile-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.qa-tile strong {
+  font-size: 1.85rem;
+  line-height: 1.1;
+  font-weight: 750;
+  color: var(--ink);
+}
+
+.qa-tile-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.qa-tile-yes { border-top: 4px solid #15803d; }
+.qa-tile-yes strong { color: #15803d; }
+.qa-tile-close { border-top: 4px solid #d97706; }
+.qa-tile-close strong { color: #c05621; }
+.qa-tile-no { border-top: 4px solid #dc2626; }
+.qa-tile-no strong { color: #b91c1c; }
+.qa-tile-total { border-top: 4px solid var(--accent); }
+.qa-tile-total strong { color: var(--accent); }
+
+@media (max-width: 800px) {
+  .qa-summary-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,0 +1,333 @@
+@model SqlEstatePortal.ViewModels.ServerQaCompareViewModel
+@{
+    ViewData["Title"] = "SQL QA Reports";
+}
+
+<div class="page-toolbar">
+    <div>
+        <h1>SQL QA Reports</h1>
+        <p class="estate-line">Pick assessment dates first, then choose a server from each date to compare (Yes / Close / No).</p>
+    </div>
+    <div class="toolbar-actions">
+        <a class="btn btn-outline-secondary" asp-action="Compare">Compare Assessments</a>
+        <a class="btn btn-outline-secondary" asp-action="Index">All Assessments</a>
+    </div>
+</div>
+
+<div class="panel mb-4">
+    <h2 class="section-title mb-3">Overall SQL QA Reports Summary</h2>
+    <form method="get" asp-action="CompareServers" class="compare-filter-form" id="qaCompareForm">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="run1" class="form-label fw-bold">Assessment date #1 <span class="text-danger">*</span></label>
+                <select id="run1" name="run1" class="form-select" required>
+                    <option value="">-- select date --</option>
+                    @foreach (var r in Model.AvailableRuns)
+                    {
+                        if (r.Id == Model.Server1RunId)
+                        {
+                            <option value="@r.Id" selected>@r.StartedAt.ToLocalTime().ToString("g") · #@r.Id · @r.Status</option>
+                        }
+                        else
+                        {
+                            <option value="@r.Id">@r.StartedAt.ToLocalTime().ToString("g") · #@r.Id · @r.Status</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="server1" class="form-label fw-bold">Server Instance #1 <span class="text-danger">*</span></label>
+                <select id="server1" name="server1" class="form-select" required>
+                    @if (Model.AvailableServers1.Count == 0)
+                    {
+                        <option value="">-- select date first --</option>
+                    }
+                    else
+                    {
+                        <option value="">-- select option --</option>
+                        @foreach (var name in Model.AvailableServers1)
+                        {
+                            if (string.Equals(name, Model.Server1, StringComparison.OrdinalIgnoreCase))
+                            {
+                                <option value="@name" selected>@name</option>
+                            }
+                            else
+                            {
+                                <option value="@name">@name</option>
+                            }
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="run2" class="form-label fw-bold">Assessment date #2 <span class="text-danger">*</span></label>
+                <select id="run2" name="run2" class="form-select" required>
+                    <option value="">-- select date --</option>
+                    @foreach (var r in Model.AvailableRuns)
+                    {
+                        if (r.Id == Model.Server2RunId)
+                        {
+                            <option value="@r.Id" selected>@r.StartedAt.ToLocalTime().ToString("g") · #@r.Id · @r.Status</option>
+                        }
+                        else
+                        {
+                            <option value="@r.Id">@r.StartedAt.ToLocalTime().ToString("g") · #@r.Id · @r.Status</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="server2" class="form-label fw-bold">Server Instance #2 <span class="text-danger">*</span></label>
+                <select id="server2" name="server2" class="form-select" required>
+                    @if (Model.AvailableServers2.Count == 0)
+                    {
+                        <option value="">-- select date first --</option>
+                    }
+                    else
+                    {
+                        <option value="">-- select option --</option>
+                        @foreach (var name in Model.AvailableServers2)
+                        {
+                            if (string.Equals(name, Model.Server2, StringComparison.OrdinalIgnoreCase))
+                            {
+                                <option value="@name" selected>@name</option>
+                            }
+                            else
+                            {
+                                <option value="@name">@name</option>
+                            }
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-12 col-md-auto ms-md-auto">
+                <button type="submit" class="btn btn-primary">View Report</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+@if (Model.AvailableRuns.Count == 0)
+{
+    <div class="panel text-center py-5">
+        <p class="muted mb-0">No assessments yet. Run an assessment first, then compare two instances here.</p>
+    </div>
+}
+else if (!Model.HasResult)
+{
+    <div class="panel text-center py-5">
+        <p class="muted mb-0">Select assessment dates and servers above to view the QA compare report.</p>
+    </div>
+}
+else
+{
+    @if (Model.TotalCount > 0)
+    {
+        <div class="panel qa-summary">
+            <div class="qa-summary-head">
+                <div>
+                    <h2 class="section-title mb-0">Match summary</h2>
+                    <p class="muted mb-0">@Model.TotalCount parameters compared between the two servers</p>
+                </div>
+            </div>
+            <div class="qa-summary-bar" role="img" aria-label="Yes @Model.YesCount, Close @Model.CloseCount, No @Model.NoCount">
+                @if (Model.YesCount > 0)
+                {
+                    <span class="qa-bar-yes" style="width: @(Model.YesPercent.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span>
+                }
+                @if (Model.CloseCount > 0)
+                {
+                    <span class="qa-bar-close" style="width: @(Model.ClosePercent.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span>
+                }
+                @if (Model.NoCount > 0)
+                {
+                    <span class="qa-bar-no" style="width: @(Model.NoPercent.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span>
+                }
+            </div>
+            <div class="qa-summary-tiles">
+                <button type="button" class="qa-tile qa-tile-yes" data-match-filter="Yes">
+                    <span class="qa-tile-label">Yes</span>
+                    <strong>@Model.YesCount</strong>
+                    <span class="qa-tile-hint">Exact match</span>
+                </button>
+                <button type="button" class="qa-tile qa-tile-close" data-match-filter="Close">
+                    <span class="qa-tile-label">Close</span>
+                    <strong>@Model.CloseCount</strong>
+                    <span class="qa-tile-hint">Near match</span>
+                </button>
+                <button type="button" class="qa-tile qa-tile-no" data-match-filter="No">
+                    <span class="qa-tile-label">No</span>
+                    <strong>@Model.NoCount</strong>
+                    <span class="qa-tile-hint">Different or missing</span>
+                </button>
+                <button type="button" class="qa-tile qa-tile-total active" data-match-filter="">
+                    <span class="qa-tile-label">Total</span>
+                    <strong>@Model.TotalCount</strong>
+                    <span class="qa-tile-hint">All parameters</span>
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="panel">
+        <div class="d-flex justify-content-end mb-3">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="qaCompareExport">Export CSV</button>
+        </div>
+        <table class="table table-sm table-hover align-middle" id="qaCompareTable">
+            <thead>
+                @await Html.PartialAsync("_ColumnFilters", new[] { "Parameter", "Key", "Server #1", "Value (Server #1)", "Server #2", "Value (Server #2)", "Match" })
+            </thead>
+            <tbody>
+            @foreach (var row in Model.Rows)
+            {
+                <tr data-match="@row.Match">
+                    <td>@row.Parameter</td>
+                    <td>@row.Key</td>
+                    <td>@row.Server1Name</td>
+                    <td>@(string.IsNullOrWhiteSpace(row.Server1Value) ? "—" : row.Server1Value)</td>
+                    <td>@row.Server2Name</td>
+                    <td>@(string.IsNullOrWhiteSpace(row.Server2Value) ? "—" : row.Server2Value)</td>
+                    <td class="text-center text-nowrap">
+                        @if (row.Match == "Yes")
+                        {
+                            <span class="badge bg-success">Yes</span>
+                        }
+                        else if (row.Match == "Close")
+                        {
+                            <span class="badge bg-warning text-dark">Close</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">No</span>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        @if (Model.TotalCount == 0)
+        {
+            <p class="muted mb-0">No QA parameters were found for the selected servers.</p>
+        }
+    </div>
+}
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const serversUrl = '@Url.Action("AssessmentRunServers", "Assessments")';
+            const server1 = document.getElementById('server1');
+            const server2 = document.getElementById('server2');
+            const run1 = document.getElementById('run1');
+            const run2 = document.getElementById('run2');
+
+            function refreshSearchable(select) {
+                if (!select) return;
+                const wrap = select.closest('.ss-wrap');
+                if (wrap) {
+                    select.classList.remove('ss-native');
+                    select.dataset.searchable = '';
+                    wrap.parentNode.insertBefore(select, wrap);
+                    wrap.remove();
+                }
+                if (typeof window.initSearchableSelects === 'function') {
+                    window.initSearchableSelects(select.parentElement || document);
+                }
+            }
+
+            async function loadServers(runSelect, serverSelect) {
+                if (!runSelect || !serverSelect) return;
+                const runId = runSelect.value || '';
+                serverSelect.innerHTML = '';
+                if (!runId) {
+                    const empty = document.createElement('option');
+                    empty.value = '';
+                    empty.textContent = '-- select date first --';
+                    serverSelect.appendChild(empty);
+                    refreshSearchable(serverSelect);
+                    return;
+                }
+
+                const loading = document.createElement('option');
+                loading.value = '';
+                loading.textContent = 'Loading…';
+                serverSelect.appendChild(loading);
+                refreshSearchable(serverSelect);
+
+                try {
+                    const res = await fetch(serversUrl + '?runId=' + encodeURIComponent(runId), {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    if (!res.ok) throw new Error('Failed to load servers');
+                    const servers = await res.json();
+                    serverSelect.innerHTML = '';
+                    if (!servers || !servers.length) {
+                        const none = document.createElement('option');
+                        none.value = '';
+                        none.textContent = '-- no servers found --';
+                        serverSelect.appendChild(none);
+                    } else {
+                        const placeholder = document.createElement('option');
+                        placeholder.value = '';
+                        placeholder.textContent = '-- select option --';
+                        serverSelect.appendChild(placeholder);
+                        servers.forEach(function (s, i) {
+                            const opt = document.createElement('option');
+                            opt.value = s.name;
+                            opt.textContent = s.name;
+                            if (i === 0) opt.selected = true;
+                            serverSelect.appendChild(opt);
+                        });
+                    }
+                } catch (e) {
+                    serverSelect.innerHTML = '';
+                    const err = document.createElement('option');
+                    err.value = '';
+                    err.textContent = '-- failed to load servers --';
+                    serverSelect.appendChild(err);
+                }
+                refreshSearchable(serverSelect);
+            }
+
+            if (run1) run1.addEventListener('change', function () { loadServers(run1, server1); });
+            if (run2) run2.addEventListener('change', function () { loadServers(run2, server2); });
+
+            const table = document.getElementById('qaCompareTable');
+            const exportBtn = document.getElementById('qaCompareExport');
+            if (exportBtn && table) {
+                exportBtn.addEventListener('click', function () {
+                    const s1 = (document.getElementById('server1') || {}).value || 'Server1';
+                    const s2 = (document.getElementById('server2') || {}).value || 'Server2';
+                    const active = document.querySelector('.qa-tile.active[data-match-filter]');
+                    const filter = active ? (active.getAttribute('data-match-filter') || '') : '';
+                    const lines = [];
+                    const headers = ['Parameter', 'Key', 'Server #1', 'Value (Server #1)', 'Server #2', 'Value (Server #2)', 'Match'];
+                    lines.push(headers.map(csvEscape).join(','));
+                    table.querySelectorAll('tbody tr').forEach(function (row) {
+                        const match = row.getAttribute('data-match') || '';
+                        if (filter && match !== filter) return;
+                        const cells = Array.prototype.map.call(row.cells, function (cell) {
+                            return csvEscape((cell.textContent || '').replace(/\s+/g, ' ').trim());
+                        });
+                        lines.push(cells.join(','));
+                    });
+                    const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'QA Report - ' + s1 + '__' + s2 + '.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                });
+            }
+
+            function csvEscape(value) {
+                const text = String(value == null ? '' : value);
+                if (/[",\r\n]/.test(text)) return '"' + text.replace(/"/g, '""') + '"';
+                return text;
+            }
+        });
+    </script>
+}

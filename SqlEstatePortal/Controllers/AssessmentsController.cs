@@ -17,19 +17,22 @@ public class AssessmentsController : Controller
     private readonly ServerReachabilityService _reachability;
     private readonly InventorySyncService _inventorySync;
     private readonly AssessmentCompareService _compareService;
+    private readonly ServerQaCompareService _qaCompareService;
 
     public AssessmentsController(
         AppDbContext db,
         AssessmentRunnerService runner,
         ServerReachabilityService reachability,
         InventorySyncService inventorySync,
-        AssessmentCompareService compareService)
+        AssessmentCompareService compareService,
+        ServerQaCompareService qaCompareService)
     {
         _db = db;
         _runner = runner;
         _reachability = reachability;
         _inventorySync = inventorySync;
         _compareService = compareService;
+        _qaCompareService = qaCompareService;
     }
 
     [RequirePermission(AppModules.Assessments, "view")]
@@ -340,5 +343,66 @@ public class AssessmentsController : Controller
 
         var model = _compareService.Compare(baseRun, targetRun, available);
         return View(model);
+    }
+
+    [HttpGet]
+    [RequirePermission(AppModules.Assessments, "view")]
+    public async Task<IActionResult> CompareServers(
+        string? server1,
+        string? server2,
+        int? run1,
+        int? run2,
+        CancellationToken ct = default)
+    {
+        var availableRuns = await _qaCompareService.GetAvailableRunsAsync(ct);
+
+        var servers1 = run1.HasValue
+            ? await _qaCompareService.GetServersForRunAsync(run1.Value, ct)
+            : [];
+        var servers2 = run2.HasValue
+            ? await _qaCompareService.GetServersForRunAsync(run2.Value, ct)
+            : [];
+
+        var vm = new ServerQaCompareViewModel
+        {
+            Server1 = server1,
+            Server2 = server2,
+            Server1RunId = run1,
+            Server2RunId = run2,
+            AvailableRuns = availableRuns,
+            AvailableServers1 = servers1,
+            AvailableServers2 = servers2
+        };
+
+        if (string.IsNullOrWhiteSpace(server1) || string.IsNullOrWhiteSpace(server2) || !run1.HasValue || !run2.HasValue)
+            return View(vm);
+
+        if (string.Equals(server1.Trim(), server2.Trim(), StringComparison.OrdinalIgnoreCase)
+            && run1.Value == run2.Value)
+        {
+            TempData["Error"] = "Select two different servers, or the same server with two different assessment dates.";
+            return View(vm);
+        }
+
+        var left = await _qaCompareService.LoadAsync(server1.Trim(), run1, ct);
+        var right = await _qaCompareService.LoadAsync(server2.Trim(), run2, ct);
+        if (left == null || right == null)
+        {
+            TempData["Error"] = "Could not load assessment data for one or both selected dates/servers.";
+            return View(vm);
+        }
+
+        return View(_qaCompareService.Compare(left, right, availableRuns, servers1, servers2));
+    }
+
+    [HttpGet]
+    [RequirePermission(AppModules.Assessments, "view")]
+    public async Task<IActionResult> AssessmentRunServers(int? runId, CancellationToken ct = default)
+    {
+        if (!runId.HasValue)
+            return Json(Array.Empty<object>());
+
+        var servers = await _qaCompareService.GetServersForRunAsync(runId.Value, ct);
+        return Json(servers.Select(name => new { name }));
     }
 }

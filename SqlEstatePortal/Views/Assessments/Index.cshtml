@@ -7,6 +7,7 @@
     <h1>Assessments</h1>
     <div class="toolbar-actions">
         <a class="btn btn-outline-secondary" asp-action="Compare">Compare Assessments</a>
+        <a class="btn btn-outline-secondary" asp-action="CompareServers">SQL QA Compare</a>
         @if (canRun)
         {
             <form asp-action="CheckServerStatus" method="post" class="js-check-server-status"

@@ -354,11 +354,15 @@
 
   function estateContext(table) {
     var root = table.closest('[data-estate-report]');
-    if (!root) return { server: '', severity: '' };
-    var sevBtn = root.querySelector('.sev-chip.active');
+    var chipRoot = root || table.closest('.panel') || document;
+    var sevBtn = chipRoot.querySelector('.sev-chip.active');
+    var matchBtn = chipRoot.querySelector('.sev-chip.active[data-match-filter], .qa-tile.active[data-match-filter]')
+      || document.querySelector('.qa-tile.active[data-match-filter]');
     return {
-      server: (root.querySelector('.server-filter') || {}).value || '',
-      severity: sevBtn ? (sevBtn.getAttribute('data-severity') || '') : ''
+      server: root ? ((root.querySelector('.server-filter') || {}).value || '') : '',
+      severity: (sevBtn && sevBtn.hasAttribute('data-severity')) ? (sevBtn.getAttribute('data-severity') || '') : '',
+      match: matchBtn ? (matchBtn.getAttribute('data-match-filter') || '') : '',
+      diffStatus: sevBtn ? (sevBtn.getAttribute('data-diff-filter') || '') : ''
     };
   }
 
@@ -371,6 +375,14 @@
     if (ctx.severity) {
       var rowSev = row.getAttribute('data-severity');
       if (rowSev && rowSev !== ctx.severity) return false;
+    }
+    if (ctx.match) {
+      var rowMatch = row.getAttribute('data-match');
+      if (rowMatch !== ctx.match) return false;
+    }
+    if (ctx.diffStatus) {
+      var rowDiff = row.getAttribute('data-diff-status');
+      if (rowDiff !== ctx.diffStatus) return false;
     }
     if (colQueries && colQueries.length) {
       for (var i = 0; i < colQueries.length; i++) {
@@ -656,6 +668,7 @@
   }
 
   function attachTable(table) {
+    if (table.hasAttribute('data-no-table-ui')) return;
     if (!table.querySelector('tbody tr') || table.dataset.tableUi === '1') return;
     table.dataset.tableUi = '1';
 
@@ -744,6 +757,24 @@
   }
 
   document.querySelectorAll('table').forEach(attachTable);
+
+  document.querySelectorAll('.sev-chip[data-match-filter], .sev-chip[data-diff-filter], .qa-tile[data-match-filter]').forEach(function (chip) {
+    if (chip.dataset.tableFilterBound === '1') return;
+    chip.dataset.tableFilterBound = '1';
+    chip.addEventListener('click', function () {
+      var group = chip.closest('.severity-tabs') || chip.closest('.qa-summary-tiles') || chip.parentElement;
+      if (group) {
+        group.querySelectorAll('.sev-chip, .qa-tile').forEach(function (c) { c.classList.remove('active'); });
+      }
+      chip.classList.add('active');
+      var scope = chip.closest('.tab-pane') || chip.closest('.panel') || document;
+      var tables = scope.querySelectorAll('table');
+      if (!tables.length) tables = document.querySelectorAll('#qaCompareTable');
+      tables.forEach(function (table) {
+        refreshTable(table, { resetPage: true });
+      });
+    });
+  });
 
   function bindAssessmentProgress() {
     var overlay = document.getElementById('assessmentProgressOverlay');

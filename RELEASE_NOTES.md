@@ -1,3 +1,16 @@
+# Release Notes - September 18, 2026
+
+## Server-wise SQL QA Compare
+- **New page**: Added **SQL QA Compare** (`/Assessments/CompareServers`) to compare configuration and inventory parameters between two SQL Server instances, modeled on the legacy MigratePlus server-wise QA report.
+- **Date-first selection**: Choose **Assessment date #1** then **Server Instance #1**, and independently **Assessment date #2** then **Server Instance #2**, so you can compare Server A on date X with Server B on date Y (or the same server across two dates).
+- **Match scoring**: Rows are scored **Yes** (exact), **Close** (near match via PHP-compatible `similar_text`), or **No** (different or missing on one side).
+- **Compared areas**: Server properties, `sp_configure`, services, databases, volumes, and sysadmins from the selected assessment runs (no new database tables).
+- **Match summary**: Visual bar and clickable Yes / Close / No / Total tiles above the grid; tiles filter the results table.
+- **Export**: CSV export of the current filtered compare rows.
+- **Navigation**: Sidebar entry plus shortcuts from Dashboard, Assessments list, assessment details, and Compare Assessments.
+
+---
+
 # Release Notes - September 3, 2026
 
 ## Linked Apps / Servers via Databases
