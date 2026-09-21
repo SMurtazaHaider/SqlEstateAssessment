@@ -42,6 +42,18 @@ public class CtDatabase
     [MaxLength(200)]
     public string? ServerName { get; set; }
 
+    /// <summary>
+    /// The real link to ct_servers. server_name is kept in step alongside it
+    /// until every reader has moved over to the id.
+    /// </summary>
+    [Column("server_id")]
+    public int? ServerId { get; set; }
+
+    /// <summary>Inherited from the server; not set directly.</summary>
+    [Column("criticality_type")]
+    [MaxLength(20)]
+    public string? CriticalityType { get; set; }
+
     [Column("elastic_pool_name")]
     [MaxLength(200)]
     public string? ElasticPoolName { get; set; }

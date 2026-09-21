@@ -1,0 +1,272 @@
+@model SqlEstatePortal.ViewModels.ServerFormViewModel
+@{
+    var isNew = Model.IsNew;
+    ViewData["Title"] = isNew ? "Add server" : $"Edit {Model.ServerName}";
+    var action = isNew ? "Create" : "Edit";
+}
+<div class="page-toolbar">
+    <div>
+        <h1>@(isNew ? "Add server" : $"Edit {Model.ServerName}")</h1>
+        <p class="estate-line">Fields marked <span class="text-danger">*</span> are required.</p>
+    </div>
+    <div class="toolbar-actions">
+        @if (!isNew)
+        {
+            <a class="btn btn-outline-secondary" asp-action="Details" asp-route-id="@Model.TxId">Details</a>
+        }
+        <a class="btn btn-outline-secondary" asp-action="Index">Back to register</a>
+    </div>
+</div>
+
+<form method="post" asp-action="@action" asp-route-id="@(isNew ? null : (int?)Model.TxId)">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="TxId" />
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+    <div class="panel">
+        <h2 class="section-title">Server</h2>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label asp-for="ServerName" class="form-label">Server name <span class="text-danger">*</span></label>
+                <input asp-for="ServerName" class="form-control" autofocus />
+                <span asp-validation-for="ServerName" class="text-danger"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="ServerType" class="form-label">Type <span class="text-danger">*</span></label>
+                <select asp-for="ServerType" class="form-select">
+                    <option value="">-- select --</option>
+                    @foreach (var o in Model.ServerTypeOptions)
+                    {
+                        <option value="@o">@o</option>
+                    }
+                </select>
+                <span asp-validation-for="ServerType" class="text-danger"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="CriticalityType" class="form-label">Criticality <span class="text-danger">*</span></label>
+                <select asp-for="CriticalityType" class="form-select">
+                    <option value="">-- select --</option>
+                    @foreach (var o in Model.CriticalityOptions)
+                    {
+                        <option value="@o">@o</option>
+                    }
+                </select>
+                <span asp-validation-for="CriticalityType" class="text-danger"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="AuthType" class="form-label">Auth type <span class="text-danger">*</span></label>
+                <select asp-for="AuthType" class="form-select">
+                    <option value="">-- select --</option>
+                    @foreach (var o in Model.AuthTypeOptions)
+                    {
+                        <option value="@o">@o</option>
+                    }
+                </select>
+                <span asp-validation-for="AuthType" class="text-danger"></span>
+                <div class="form-text">MFA instances cannot be assessed by the collector, which uses Windows authentication.</div>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Environment" class="form-label"></label>
+                <input asp-for="Environment" class="form-control" list="environmentOptions" />
+                <datalist id="environmentOptions">
+                    @foreach (var o in Model.EnvironmentOptions)
+                    {
+                        <option value="@o"></option>
+                    }
+                </datalist>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="IpAddress" class="form-label"></label>
+                <input asp-for="IpAddress" class="form-control" />
+                <div class="form-text">Used in preference to the name when checking reachability.</div>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Fqdn" class="form-label">FQDN</label>
+                <input asp-for="Fqdn" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Subscription" class="form-label"></label>
+                <input asp-for="Subscription" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="DataCentreLocation" class="form-label"></label>
+                <input asp-for="DataCentreLocation" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Tower" class="form-label"></label>
+                <input asp-for="Tower" class="form-control" />
+            </div>
+            <div class="col-md-8">
+                <label asp-for="Notes" class="form-label"></label>
+                <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <div class="form-check">
+                    <input asp-for="IsActive" class="form-check-input" />
+                    <label asp-for="IsActive" class="form-check-label"></label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2 class="section-title">Databases</h2>
+        <p class="muted">
+            A database belongs to a server by name (<code>ct_database.server_name</code>), so linking here
+            reassigns the database and delinking leaves it unassigned. The inventory sync writes the same
+            field, so a later assessment can overwrite manual changes.
+        </p>
+
+        <h3 class="section-title">Linked to this server (@Model.LinkedDatabases.Count)</h3>
+        @if (Model.LinkedDatabases.Count == 0)
+        {
+            <p class="muted">No databases are linked to this server yet.</p>
+        }
+        else
+        {
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th style="width:90px">Delink</th>
+                        <th>Database</th>
+                        <th>Environment</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var db in Model.LinkedDatabases)
+                {
+                    <tr>
+                        <td>
+                            <input class="form-check-input" type="checkbox"
+                                   name="DelinkDatabaseIds" value="@db.TxId"
+                                   aria-label="Delink @db.DatabaseName" />
+                        </td>
+                        <td>@db.DatabaseName</td>
+                        <td>@db.Environment</td>
+                        <td>@db.DatabaseStatus</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+
+        <h3 class="section-title">Unassigned databases (@Model.AvailableDatabases.Count)</h3>
+        @if (Model.AvailableDatabases.Count == 0)
+        {
+            <p class="muted">Every database in the register is already assigned to a server.</p>
+        }
+        else
+        {
+            <p class="muted">Tick a database to link it to this server. Only databases with no server assigned are listed.</p>
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th style="width:90px">Link</th>
+                        <th>Database</th>
+                        <th>Environment</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var db in Model.AvailableDatabases)
+                {
+                    <tr>
+                        <td>
+                            <input class="form-check-input" type="checkbox"
+                                   name="LinkDatabaseIds" value="@db.TxId"
+                                   aria-label="Link @db.DatabaseName" />
+                        </td>
+                        <td>@db.DatabaseName</td>
+                        <td>@db.Environment</td>
+                        <td>@db.DatabaseStatus</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <div class="panel">
+        <h2 class="section-title">Applications</h2>
+        <p class="muted">
+            Applications are many-to-many with servers, so these are real rows in
+            <code>ct_application_server</code> &mdash; they survive an inventory sync, unlike database links.
+        </p>
+
+        <h3 class="section-title">Linked to this server (@Model.LinkedApplications.Count)</h3>
+        @if (Model.LinkedApplications.Count == 0)
+        {
+            <p class="muted">No applications are explicitly linked to this server.</p>
+        }
+        else
+        {
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th style="width:90px">Unlink</th>
+                        <th>Application</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var app in Model.LinkedApplications)
+                {
+                    <tr>
+                        <td>
+                            <input class="form-check-input" type="checkbox"
+                                   name="UnlinkApplicationIds" value="@app.Id"
+                                   aria-label="Unlink @app.Name" />
+                        </td>
+                        <td>@app.Name</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+
+        @if (Model.InferredApplications.Count > 0)
+        {
+            <h3 class="section-title">Reached through a database (@Model.InferredApplications.Count)</h3>
+            <p class="muted">
+                These are linked to a database that sits on this server, so they already count as linked
+                applications on the register. Remove the database link to break them.
+            </p>
+            <ul class="mb-3">
+                @foreach (var app in Model.InferredApplications)
+                {
+                    <li>@app.Name <span class="muted">&mdash; @app.SourceText</span></li>
+                }
+            </ul>
+        }
+
+        <h3 class="section-title">Link applications</h3>
+        @if (Model.AvailableApplications.Count == 0)
+        {
+            <p class="muted">Every application is already linked to this server.</p>
+        }
+        else
+        {
+            <p class="muted">
+                Hold Ctrl (Cmd on Mac) to select more than one, or type to jump to a name.
+                @Model.AvailableApplications.Count application(s) available.
+            </p>
+            <select name="LinkApplicationIds" class="form-select" multiple size="12"
+                    aria-label="Applications to link">
+                @foreach (var app in Model.AvailableApplications)
+                {
+                    <option value="@app.Id">@app.Name</option>
+                }
+            </select>
+        }
+    </div>
+
+    <div class="toolbar-actions mb-4">
+        <button type="submit" class="btn btn-primary">@(isNew ? "Add server" : "Save changes")</button>
+        <a class="btn btn-outline-secondary" asp-action="Index">Cancel</a>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

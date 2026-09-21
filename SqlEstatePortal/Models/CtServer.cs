@@ -18,6 +18,16 @@ public class CtServer
     [MaxLength(50)]
     public string? ServerType { get; set; }
 
+    /// <summary>Critical or Non Critical. Mandatory on the register form.</summary>
+    [Column("criticality_type")]
+    [MaxLength(20)]
+    public string? CriticalityType { get; set; }
+
+    /// <summary>Windows Auth or MFA. Mandatory on the register form.</summary>
+    [Column("auth_type")]
+    [MaxLength(30)]
+    public string? AuthType { get; set; }
+
     [Column("fqdn")]
     [MaxLength(255)]
     public string? Fqdn { get; set; }

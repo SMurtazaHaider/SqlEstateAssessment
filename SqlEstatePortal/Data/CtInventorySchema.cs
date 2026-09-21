@@ -405,6 +405,14 @@ END;",
                   ELSE 'Others'
               END
               WHERE server_type IS NULL OR server_type = '';",
+            "IF COL_LENGTH('ct_servers','criticality_type') IS NULL ALTER TABLE dbo.ct_servers ADD criticality_type nvarchar(20) NULL;",
+            "IF COL_LENGTH('ct_servers','auth_type') IS NULL ALTER TABLE dbo.ct_servers ADD auth_type nvarchar(30) NULL;",
+            @"IF COL_LENGTH('ct_servers','criticality_type') IS NOT NULL
+              UPDATE dbo.ct_servers SET criticality_type = N'Critical'
+              WHERE criticality_type IS NULL OR criticality_type = '';",
+            @"IF COL_LENGTH('ct_servers','auth_type') IS NOT NULL
+              UPDATE dbo.ct_servers SET auth_type = N'Windows Auth'
+              WHERE auth_type IS NULL OR auth_type = '';",
             "IF COL_LENGTH('ct_servers','sql_product') IS NULL ALTER TABLE dbo.ct_servers ADD sql_product nvarchar(100) NULL;",
             "IF COL_LENGTH('ct_servers','support_status') IS NULL ALTER TABLE dbo.ct_servers ADD support_status nvarchar(50) NULL;",
             "IF COL_LENGTH('ct_servers','sql_edition') IS NULL ALTER TABLE dbo.ct_servers ADD sql_edition nvarchar(150) NULL;",
@@ -466,6 +474,46 @@ BEGIN
         CREATE NONCLUSTERED INDEX [IX_ct_database_database_name] ON dbo.[ct_database] ([database_name]);
 END;",
             "IF COL_LENGTH('ct_database','last_full_backup') IS NULL ALTER TABLE dbo.ct_database ADD last_full_backup datetime2 NULL;",
+            // ct_database has always pointed at its server by name, which breaks on
+            // rename and allows orphans. server_id is the real relationship; the
+            // name is kept in step until every reader has moved over.
+            "IF COL_LENGTH('ct_applications','criticality_type') IS NULL ALTER TABLE dbo.ct_applications ADD criticality_type nvarchar(20) NULL;",
+            // Server-derived criticality briefly lived in business_criticality. Put the
+            // business values back, then retire the snapshot column so this runs once.
+            @"IF COL_LENGTH('ct_applications','business_criticality_original') IS NOT NULL
+              UPDATE dbo.ct_applications
+                 SET business_criticality = business_criticality_original
+               WHERE business_criticality_original IS NOT NULL;",
+            @"IF COL_LENGTH('ct_applications','business_criticality_original') IS NOT NULL
+              UPDATE dbo.ct_applications
+                 SET business_criticality = NULL
+               WHERE business_criticality_original IS NULL
+                 AND business_criticality IN (N'Critical', N'Non Critical');",
+            @"IF COL_LENGTH('ct_applications','business_criticality_original') IS NOT NULL
+              ALTER TABLE dbo.ct_applications DROP COLUMN business_criticality_original;",
+            "IF COL_LENGTH('ct_database','criticality_type') IS NULL ALTER TABLE dbo.ct_database ADD criticality_type nvarchar(20) NULL;",
+            "IF COL_LENGTH('ct_database','server_id') IS NULL ALTER TABLE dbo.ct_database ADD server_id int NULL;",
+            @"IF COL_LENGTH('ct_database','server_id') IS NOT NULL
+              UPDATE d
+                 SET d.server_id = s.tx_id
+                FROM dbo.ct_database AS d
+               INNER JOIN dbo.ct_servers AS s
+                  ON LOWER(LTRIM(RTRIM(s.server_name))) = LOWER(LTRIM(RTRIM(d.server_name)))
+               WHERE d.server_id IS NULL
+                 AND d.server_name IS NOT NULL
+                 AND LTRIM(RTRIM(d.server_name)) <> N'';",
+            @"IF COL_LENGTH('ct_database','server_id') IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = N'IX_ct_database_server_id' AND object_id = OBJECT_ID(N'dbo.ct_database'))
+              CREATE NONCLUSTERED INDEX [IX_ct_database_server_id] ON dbo.[ct_database] ([server_id]);",
+            @"IF COL_LENGTH('ct_database','server_id') IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_ct_database_server')
+              ALTER TABLE dbo.ct_database WITH CHECK
+                ADD CONSTRAINT [FK_ct_database_server]
+                FOREIGN KEY ([server_id]) REFERENCES dbo.[ct_servers] ([tx_id])
+                ON DELETE SET NULL;",
+
             "IF COL_LENGTH('ct_database','last_differential_backup') IS NULL ALTER TABLE dbo.ct_database ADD last_differential_backup datetime2 NULL;",
             "IF COL_LENGTH('ct_database','last_log_backup') IS NULL ALTER TABLE dbo.ct_database ADD last_log_backup datetime2 NULL;",
             "IF COL_LENGTH('ct_database','database_owner') IS NULL ALTER TABLE dbo.ct_database ADD database_owner nvarchar(128) NULL;"
@@ -477,6 +525,10 @@ END;",
         }
 
         await MigrateLegacyOwnerFromBackupInfoAsync(db);
+
+        // Criticality is inherited from servers, so it is recomputed once the
+        // columns and links are in place.
+        await CriticalityPropagation.ApplyAsync(db);
     }
 
     /// <summary>

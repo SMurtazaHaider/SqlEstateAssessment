@@ -73,6 +73,17 @@
                     </select>
                 </div>
                 <div>
+                    <label for="criticality">Criticality</label>
+                    <select id="criticality" name="criticality" class="form-select form-select-sm">
+                        <option value="">All</option>
+                        @foreach (var o in Model.CriticalityOptions)
+                        {
+                            if (Sel(Model.Criticality, o)) { <option value="@o" selected>@o</option> }
+                            else { <option value="@o">@o</option> }
+                        }
+                    </select>
+                </div>
+                <div>
                     <label for="status">Status</label>
                     <select id="status" name="status" class="form-select form-select-sm">
                         <option value="">All</option>
@@ -214,7 +225,7 @@
             @await Html.PartialAsync("_ColumnFilters", new[]
             {
                 "Application", "Status", "Function", "Type", "TIME Roadmap", "Tech", "Compliance",
-                "Location", "Criticality", "TCO", "Linked DBs", "Linked Servers", "Owners", "Region",
+                "Location", "Criticality", "Business Criticality", "TCO", "Linked DBs", "Linked Servers", "Owners", "Region",
                 canUpdate || canDelete ? "-Actions" : "- "
             })
             </thead>
@@ -252,6 +263,16 @@
                         }
                     </td>
                     <td>@Dash(app.Location)</td>
+                    <td>
+                        @if (string.Equals(app.CriticalityType, "Critical", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span class="badge bg-danger">Critical</span>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(app.CriticalityType))
+                        {
+                            <span class="badge bg-secondary">@app.CriticalityType</span>
+                        }
+                    </td>
                     <td>@Dash(app.BusinessCriticality)</td>
                     <td>@FormatTco(app.Tco)</td>
                     <td>

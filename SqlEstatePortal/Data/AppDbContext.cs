@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<CtDatabase> CtDatabases => Set<CtDatabase>();
     public DbSet<CtServer> CtServers => Set<CtServer>();
     public DbSet<CtCost> CtCosts => Set<CtCost>();
+    public DbSet<CtApplicationServer> CtApplicationServers => Set<CtApplicationServer>();
     public DbSet<AssessmentRun> AssessmentRuns => Set<AssessmentRun>();
     public DbSet<AssessmentFinding> AssessmentFindings => Set<AssessmentFinding>();
     public DbSet<AssessmentServerSnapshot> AssessmentServerSnapshots => Set<AssessmentServerSnapshot>();

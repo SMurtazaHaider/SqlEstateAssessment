@@ -26,7 +26,8 @@ public class DatabasesController : Controller
         string? environment,
         string? edition,
         string? location,
-        string? active)
+        string? active,
+        string? criticality)
     {
         databaseName = Norm(databaseName);
         serverName = Norm(serverName);
@@ -35,6 +36,12 @@ public class DatabasesController : Controller
         edition = Norm(edition);
         location = Norm(location);
         active = Norm(active);
+        criticality = Norm(criticality);
+
+        // Same rule as the Servers register: default to Critical on a plain page
+        // load, honour an explicit choice (including "All") once the form posts.
+        if (!Request.Query.ContainsKey("criticality"))
+            criticality = CriticalityPropagation.Critical;
 
         var all = await _db.CtDatabases.AsNoTracking()
             .OrderBy(d => d.ServerName)
@@ -69,6 +76,8 @@ public class DatabasesController : Controller
             filtered = filtered.Where(d => string.Equals(d.DatabaseEdition, edition, StringComparison.OrdinalIgnoreCase));
         if (location != null)
             filtered = filtered.Where(d => string.Equals(d.DataCentreLocation, location, StringComparison.OrdinalIgnoreCase));
+        if (criticality != null)
+            filtered = filtered.Where(d => string.Equals(d.CriticalityType, criticality, StringComparison.OrdinalIgnoreCase));
         if (active != null)
         {
             var wantActive = active is "1" or "true" or "yes" or "active";
@@ -86,6 +95,7 @@ public class DatabasesController : Controller
             Edition = edition,
             Location = location,
             Active = active,
+            Criticality = criticality,
             TotalCount = all.Count,
             DatabaseNameOptions = DistinctSorted(all.Select(d => d.DatabaseName)),
             ServerNameOptions = DistinctSorted(all.Select(d => d.ServerName)),
@@ -93,6 +103,9 @@ public class DatabasesController : Controller
             EnvironmentOptions = DistinctSorted(all.Select(d => d.Environment)),
             EditionOptions = DistinctSorted(all.Select(d => d.DatabaseEdition)),
             LocationOptions = DistinctSorted(all.Select(d => d.DataCentreLocation)),
+            // The defaulted value must always be offered, even if nothing carries it yet.
+            CriticalityOptions = DistinctSorted(all.Select(d => d.CriticalityType)
+                .Concat([CriticalityPropagation.Critical, CriticalityPropagation.NonCritical])),
             Databases = list.Select(d =>
             {
                 int? serverId = null;
@@ -106,6 +119,7 @@ public class DatabasesController : Controller
                     DatabaseName = d.DatabaseName,
                     ServerName = d.ServerName,
                     ServerId = serverId,
+                    CriticalityType = d.CriticalityType,
                     DatabaseStatus = d.DatabaseStatus,
                     DatabaseOwner = d.DatabaseOwner,
                     Environment = d.Environment,

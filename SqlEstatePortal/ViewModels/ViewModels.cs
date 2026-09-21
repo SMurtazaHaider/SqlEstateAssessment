@@ -215,6 +215,9 @@ public class ServerSummary
 
 public class ApplicationRegisterViewModel
 {
+    public string? Criticality { get; set; }
+    public IReadOnlyList<string> CriticalityOptions { get; set; } = [];
+
     public string? Application { get; set; }
     public string? Status { get; set; }
     public string? Function { get; set; }
@@ -256,6 +259,8 @@ public class ApplicationRowViewModel
     public string? ComplianceGrade { get; set; }
     public string? Location { get; set; }
     public string? BusinessCriticality { get; set; }
+    /// <summary>Inherited from the linked servers.</summary>
+    public string? CriticalityType { get; set; }
     public string? Tco { get; set; }
     public int LinkedDbCount { get; set; }
     public int LinkedServerCount { get; set; }
@@ -268,6 +273,9 @@ public class ApplicationRowViewModel
 
 public class DatabaseRegisterViewModel
 {
+    public string? Criticality { get; set; }
+    public IReadOnlyList<string> CriticalityOptions { get; set; } = [];
+
     public string? DatabaseName { get; set; }
     public string? ServerName { get; set; }
     public string? Status { get; set; }
@@ -294,6 +302,8 @@ public class DatabaseRowViewModel
     public string DatabaseName { get; set; } = string.Empty;
     public string? ServerName { get; set; }
     public int? ServerId { get; set; }
+    /// <summary>Inherited from the linked server.</summary>
+    public string? CriticalityType { get; set; }
     public string? DatabaseStatus { get; set; }
     public string? DatabaseOwner { get; set; }
     public string? Environment { get; set; }
@@ -318,8 +328,14 @@ public class ServerRegisterViewModel
     public string? Status { get; set; }
     public string? Subscription { get; set; }
     public string? DataCentre { get; set; }
+    public string? Criticality { get; set; }
+    public string? AuthType { get; set; }
 
     public int TotalCount { get; set; }
+    /// <summary>Rows after filtering, so the heading can say what is actually on screen.</summary>
+    public int FilteredCount { get; set; }
+    public bool CanAdd { get; set; }
+    public bool CanEdit { get; set; }
 
     public IReadOnlyList<string> ServerNameOptions { get; set; } = [];
     public IReadOnlyList<string> ServerTypeOptions { get; set; } = [];
@@ -327,6 +343,8 @@ public class ServerRegisterViewModel
     public IReadOnlyList<string> StatusOptions { get; set; } = [];
     public IReadOnlyList<string> SubscriptionOptions { get; set; } = [];
     public IReadOnlyList<string> DataCentreOptions { get; set; } = [];
+    public IReadOnlyList<string> CriticalityOptions { get; set; } = [];
+    public IReadOnlyList<string> AuthTypeOptions { get; set; } = [];
 
     public IReadOnlyList<ServerRowViewModel> Servers { get; set; } = [];
 }
@@ -336,6 +354,8 @@ public class ServerRowViewModel
     public int TxId { get; set; }
     public string ServerName { get; set; } = string.Empty;
     public string? ServerType { get; set; }
+    public string? CriticalityType { get; set; }
+    public string? AuthType { get; set; }
     public string? Environment { get; set; }
     public string? ServerStatus { get; set; }
     public string? SqlProduct { get; set; }
@@ -440,4 +460,100 @@ public class LinkedApplicationItemViewModel
     public string? Location { get; set; }
     public string? ServiceOwner { get; set; }
     public string? OperatingRegion { get; set; }
+}
+
+/// <summary>Add / edit form for a server in the inventory register.</summary>
+public class ServerFormViewModel
+{
+    /// <summary>0 for a new server.</summary>
+    public int TxId { get; set; }
+
+    public bool IsNew => TxId == 0;
+
+    [Required(ErrorMessage = "Server name is required."), MaxLength(200), Display(Name = "Server name")]
+    public string ServerName { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Type is required."), MaxLength(50), Display(Name = "Type")]
+    public string ServerType { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Criticality is required."), MaxLength(20), Display(Name = "Criticality")]
+    public string CriticalityType { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Auth type is required."), MaxLength(30), Display(Name = "Auth type")]
+    public string AuthType { get; set; } = string.Empty;
+
+    [MaxLength(255)]
+    public string? Fqdn { get; set; }
+
+    [MaxLength(50), Display(Name = "IP address")]
+    public string? IpAddress { get; set; }
+
+    [MaxLength(100)]
+    public string? Environment { get; set; }
+
+    [MaxLength(200)]
+    public string? Subscription { get; set; }
+
+    [MaxLength(100), Display(Name = "Data centre")]
+    public string? DataCentreLocation { get; set; }
+
+    [MaxLength(100)]
+    public string? Tower { get; set; }
+
+    public string? Notes { get; set; }
+
+    [Display(Name = "Active")]
+    public bool IsActive { get; set; } = true;
+
+    public IReadOnlyList<string> ServerTypeOptions { get; set; } = [];
+    public IReadOnlyList<string> CriticalityOptions { get; set; } = [];
+    public IReadOnlyList<string> AuthTypeOptions { get; set; } = [];
+    public IReadOnlyList<string> EnvironmentOptions { get; set; } = [];
+
+    /// <summary>Databases currently pointing at this server.</summary>
+    public IReadOnlyList<ServerDatabaseLinkViewModel> LinkedDatabases { get; set; } = [];
+
+    /// <summary>Databases with no server assigned, offered for linking.</summary>
+    public IReadOnlyList<ServerDatabaseLinkViewModel> AvailableDatabases { get; set; } = [];
+
+    /// <summary>Database ids ticked to link on submit.</summary>
+    public List<int> LinkDatabaseIds { get; set; } = [];
+
+    /// <summary>Database ids ticked to delink on submit.</summary>
+    public List<int> DelinkDatabaseIds { get; set; } = [];
+
+    /// <summary>Applications explicitly linked to this server via ct_application_server.</summary>
+    public IReadOnlyList<ServerApplicationLinkViewModel> LinkedApplications { get; set; } = [];
+
+    /// <summary>
+    /// Applications inferred through a linked database rather than an explicit row.
+    /// Shown read-only: they follow from the database links and cannot be unlinked here.
+    /// </summary>
+    public IReadOnlyList<ServerApplicationLinkViewModel> InferredApplications { get; set; } = [];
+
+    /// <summary>Every application not already explicitly linked, for the picker.</summary>
+    public IReadOnlyList<ServerApplicationLinkViewModel> AvailableApplications { get; set; } = [];
+
+    /// <summary>Application ids chosen to link on submit.</summary>
+    public List<int> LinkApplicationIds { get; set; } = [];
+
+    /// <summary>Application ids ticked to unlink on submit.</summary>
+    public List<int> UnlinkApplicationIds { get; set; } = [];
+}
+
+public class ServerApplicationLinkViewModel
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Where an inferred link came from, e.g. the database that produced it.</summary>
+    public string? SourceText { get; set; }
+}
+
+public class ServerDatabaseLinkViewModel
+{
+    public int TxId { get; set; }
+    public string DatabaseName { get; set; } = string.Empty;
+    public string? ServerName { get; set; }
+    public string? Environment { get; set; }
+    public string? DatabaseStatus { get; set; }
 }

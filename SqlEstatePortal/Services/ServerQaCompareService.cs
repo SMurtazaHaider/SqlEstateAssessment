@@ -262,7 +262,7 @@ public class ServerQaCompareService
                 Server1Name = server1.ServerName,
                 Server1Value = source.Value,
                 Server2Name = server2.ServerName,
-                Server2Value = "—",
+                Server2Value = MissingValueFor(source.Parameter),
                 Match = "No",
                 MatchPercent = 0
             });
@@ -278,7 +278,7 @@ public class ServerQaCompareService
                 Parameter = target.Parameter,
                 Key = target.Key,
                 Server1Name = server1.ServerName,
-                Server1Value = "—",
+                Server1Value = MissingValueFor(target.Parameter),
                 Server2Name = server2.ServerName,
                 Server2Value = target.Value,
                 Match = "No",
@@ -288,6 +288,23 @@ public class ServerQaCompareService
 
         return rows;
     }
+
+    internal const string ParameterLinkedServer = "Linked server";
+    internal const string ParameterSqlLogin = "SQL login";
+
+    private const string PresentValue = "Yes";
+    private const string AbsentValue = "No";
+    private const string NoCounterpartValue = "—";
+
+    /// <summary>
+    /// Parameters whose value is simply "does this exist on the server", where the
+    /// absence of a counterpart is a meaningful "No" rather than "no data".
+    /// </summary>
+    private static readonly HashSet<string> PresenceParameters =
+        new(StringComparer.OrdinalIgnoreCase) { ParameterLinkedServer, ParameterSqlLogin };
+
+    private static string MissingValueFor(string parameter) =>
+        PresenceParameters.Contains(parameter) ? AbsentValue : NoCounterpartValue;
 
     internal static List<QaParameterItem> Flatten(
         AssessmentServerSnapshot? server,
@@ -375,18 +392,19 @@ public class ServerQaCompareService
 
         foreach (var ls in (linkedServers ?? []).OrderBy(l => l.LinkedServerName, StringComparer.OrdinalIgnoreCase))
         {
-            Add("Linked server", $"{ls.LinkedServerName} / Data source", ls.DataSource);
-            Add("Linked server", $"{ls.LinkedServerName} / Provider", ls.Provider);
-            Add("Linked server", $"{ls.LinkedServerName} / Remote login", ls.IsRemoteLoginEnabled ? "Yes" : "No");
-            Add("Linked server", $"{ls.LinkedServerName} / RPC out", ls.IsRpcOutEnabled ? "Yes" : "No");
+            // One row per linked server: the QA question is "is this link defined on
+            // both servers?", so the value is presence. The per-link detail (data
+            // source, provider, remote login, RPC out) lives on the assessment
+            // Details > Linked servers tab.
+            Add(ParameterLinkedServer, ls.LinkedServerName, PresentValue);
         }
 
         foreach (var login in (sqlLogins ?? []).OrderBy(l => l.LoginName, StringComparer.OrdinalIgnoreCase))
         {
-            Add("SQL login", $"{login.LoginName} / State", login.IsDisabled ? "Disabled" : "Enabled");
-            Add("SQL login", $"{login.LoginName} / Sysadmin", login.IsSysadmin ? "Yes" : "No");
-            Add("SQL login", $"{login.LoginName} / Policy checked", login.IsPolicyChecked ? "Yes" : "No");
-            Add("SQL login", $"{login.LoginName} / Expiration checked", login.IsExpirationChecked ? "Yes" : "No");
+            // One row per login: the QA question is "does this login exist on both
+            // servers?". State, sysadmin and the password-policy flags are on the
+            // assessment Details > SQL logins tab.
+            Add(ParameterSqlLogin, login.LoginName, PresentValue);
         }
 
         foreach (var ag in (availabilityGroups ?? [])

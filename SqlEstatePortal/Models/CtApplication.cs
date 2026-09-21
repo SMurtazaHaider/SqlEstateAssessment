@@ -61,6 +61,14 @@ public class CtApplication
     [Column("business_criticality")]
     public string? BusinessCriticality { get; set; }
 
+    /// <summary>
+    /// Inherited from the servers this application touches; separate from the
+    /// business-owned BusinessCriticality above.
+    /// </summary>
+    [Column("criticality_type")]
+    [MaxLength(20)]
+    public string? CriticalityType { get; set; }
+
     [Column("service_grade")]
     public string? ServiceGrade { get; set; }
 

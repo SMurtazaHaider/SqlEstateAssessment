@@ -30,7 +30,8 @@ public class ApplicationsController : Controller
         string? technicalDebt,
         string? operatingRegion,
         string? monitoring,
-        string? vendor)
+        string? vendor,
+        string? criticality)
     {
         application = Norm(application);
         status = Norm(status);
@@ -43,6 +44,12 @@ public class ApplicationsController : Controller
         operatingRegion = Norm(operatingRegion);
         monitoring = Norm(monitoring);
         vendor = Norm(vendor);
+        criticality = Norm(criticality);
+
+        // Same rule as the Servers register: default to Critical on a plain page
+        // load, honour an explicit choice (including "All") once the form posts.
+        if (!Request.Query.ContainsKey("criticality"))
+            criticality = CriticalityPropagation.Critical;
 
         var all = await _db.CtApplications.AsNoTracking().OrderBy(a => a.Name).ToListAsync();
 
@@ -105,6 +112,8 @@ public class ApplicationsController : Controller
             filtered = filtered.Where(a => string.Equals(a.MonitoringGrade, monitoring, StringComparison.OrdinalIgnoreCase));
         if (vendor != null)
             filtered = filtered.Where(a => string.Equals(a.Vendor, vendor, StringComparison.OrdinalIgnoreCase));
+        if (criticality != null)
+            filtered = filtered.Where(a => string.Equals(a.CriticalityType, criticality, StringComparison.OrdinalIgnoreCase));
 
         var list = filtered.ToList();
 
@@ -121,6 +130,7 @@ public class ApplicationsController : Controller
             OperatingRegion = operatingRegion,
             Monitoring = monitoring,
             Vendor = vendor,
+            Criticality = criticality,
             TotalCount = all.Count,
             ApplicationOptions = DistinctSorted(all.Select(a => a.Name)),
             StatusOptions = DistinctSorted(all.Select(a => a.Status)),
@@ -133,6 +143,9 @@ public class ApplicationsController : Controller
             OperatingRegionOptions = DistinctSorted(all.Select(a => a.OperatingRegion)),
             MonitoringOptions = DistinctSorted(all.Select(a => a.MonitoringGrade)),
             VendorOptions = DistinctSorted(all.Select(a => a.Vendor)),
+            // The defaulted value must always be offered, even if nothing carries it yet.
+            CriticalityOptions = DistinctSorted(all.Select(a => a.CriticalityType)
+                .Concat([CriticalityPropagation.Critical, CriticalityPropagation.NonCritical])),
             Applications = list.Select(a => new ApplicationRowViewModel
             {
                 Id = a.Id,
@@ -145,6 +158,7 @@ public class ApplicationsController : Controller
                 ComplianceGrade = a.ComplianceGrade,
                 Location = a.Location,
                 BusinessCriticality = a.BusinessCriticality,
+                CriticalityType = a.CriticalityType,
                 Tco = tcoLookup.GetValueOrDefault(a.Id),
                 LinkedDbCount = linkedLookup.GetValueOrDefault(a.Id),
                 LinkedServerCount = linkedServerLookup.GetValueOrDefault(a.Id),

@@ -52,6 +52,17 @@
                     </select>
                 </div>
                 <div>
+                    <label for="criticality">Criticality</label>
+                    <select id="criticality" name="criticality" class="form-select form-select-sm">
+                        <option value="">All</option>
+                        @foreach (var o in Model.CriticalityOptions)
+                        {
+                            if (Sel(Model.Criticality, o)) { <option value="@o" selected>@o</option> }
+                            else { <option value="@o">@o</option> }
+                        }
+                    </select>
+                </div>
+                <div>
                     <label for="status">Status</label>
                     <select id="status" name="status" class="form-select form-select-sm">
                         <option value="">All</option>
@@ -147,7 +158,7 @@
             <thead>
             @await Html.PartialAsync("_ColumnFilters", new[]
             {
-                "Database", "Server", "Status", "Owner", "Environment", "Edition",
+                "Database", "Server", "Criticality", "Status", "Owner", "Environment", "Edition",
                 "Location", "Linked Apps", "Linked Server"
             })
             </thead>
@@ -166,6 +177,16 @@
                         else
                         {
                             @Dash(db.ServerName)
+                        }
+                    </td>
+                    <td>
+                        @if (string.Equals(db.CriticalityType, "Critical", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span class="badge bg-danger">Critical</span>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(db.CriticalityType))
+                        {
+                            <span class="badge bg-secondary">@db.CriticalityType</span>
                         }
                     </td>
                     <td>

@@ -19,7 +19,14 @@
 <div class="page-toolbar">
     <div class="register-heading mb-0">
         <h1>Charles Taylor Group - @Model.TotalCount servers</h1>
+        <p class="estate-line">Showing @Model.FilteredCount of @Model.TotalCount</p>
     </div>
+    @if (Model.CanAdd)
+    {
+        <div class="toolbar-actions">
+            <a class="btn btn-primary" asp-action="Create">Add server</a>
+        </div>
+    }
 </div>
 
 @if (TempData["Success"] is string success)
@@ -56,6 +63,28 @@
                         @foreach (var o in Model.ServerTypeOptions)
                         {
                             if (Sel(Model.ServerType, o)) { <option value="@o" selected>@o</option> }
+                            else { <option value="@o">@o</option> }
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label for="criticality">Criticality</label>
+                    <select id="criticality" name="criticality" class="form-select form-select-sm">
+                        <option value="">All</option>
+                        @foreach (var o in Model.CriticalityOptions)
+                        {
+                            if (Sel(Model.Criticality, o)) { <option value="@o" selected>@o</option> }
+                            else { <option value="@o">@o</option> }
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label for="authType">Auth Type</label>
+                    <select id="authType" name="authType" class="form-select form-select-sm">
+                        <option value="">All</option>
+                        @foreach (var o in Model.AuthTypeOptions)
+                        {
+                            if (Sel(Model.AuthType, o)) { <option value="@o" selected>@o</option> }
                             else { <option value="@o">@o</option> }
                         }
                     </select>
@@ -135,8 +164,7 @@
             <thead>
             @await Html.PartialAsync("_ColumnFilters", new[]
             {
-                "Server", "Type", "Environment", "Status", "Product", "Support", "Edition", "Version",
-                "Subscription", "Data Centre",
+                "Server", "Type", "Criticality", "Auth Type", "Environment", "Status",
                 "Databases", "Linked Apps", "-Actions"
             })
             </thead>
@@ -148,6 +176,17 @@
                         <a class="app-name-link" asp-action="Details" asp-route-id="@s.TxId">@s.ServerName</a>
                     </td>
                     <td>@Dash(s.ServerType)</td>
+                    <td>
+                        @if (string.Equals(s.CriticalityType, "Critical", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span class="badge bg-danger">Critical</span>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(s.CriticalityType))
+                        {
+                            <span class="badge bg-secondary">@s.CriticalityType</span>
+                        }
+                    </td>
+                    <td>@Dash(s.AuthType)</td>
                     <td>@Dash(s.Environment)</td>
                     <td>
                         @if (!string.IsNullOrWhiteSpace(s.ServerStatus))
@@ -155,12 +194,6 @@
                             <span class="@StatusClass(s.ServerStatus)">@s.ServerStatus</span>
                         }
                     </td>
-                    <td>@Dash(s.SqlProduct)</td>
-                    <td>@Dash(s.SupportStatus)</td>
-                    <td>@Dash(s.SqlEdition)</td>
-                    <td>@Dash(s.SqlVersion)</td>
-                    <td>@Dash(s.Subscription)</td>
-                    <td>@Dash(s.DataCentreLocation)</td>
                     <td>
                         @if (s.DatabaseCount > 0)
                         {
@@ -193,6 +226,10 @@
                         <a class="action-icon action-edit" asp-action="Details" asp-route-id="@s.TxId" title="View details">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
                         </a>
+                        @if (Model.CanEdit)
+                        {
+                            <a class="btn btn-sm btn-outline-secondary ms-1" asp-action="Edit" asp-route-id="@s.TxId" title="Edit server">Edit</a>
+                        }
                     </td>
                 </tr>
             }
