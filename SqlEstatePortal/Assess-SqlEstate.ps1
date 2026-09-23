@@ -328,7 +328,14 @@ function ConvertTo-HtmlTable {
         [object[]]$Rows,
         [string[]]$Columns
     )
-    $rowList = @($Rows)
+    # Drop nulls before counting. Several sections are called as
+    # ConvertTo-HtmlTable @($s.TlsCertificate), and a server that was
+    # unreachable - or whose query was skipped - leaves that property $null.
+    # @($null) is an array of ONE null, so a plain .Count -eq 0 guard passes and
+    # the next line dereferences it; under Set-StrictMode -Version Latest that
+    # throws PropertyNotFoundStrict and fails the whole run at report time,
+    # after all the collection work has already succeeded.
+    $rowList = @($Rows | Where-Object { $null -ne $_ })
     if ($rowList.Count -eq 0) {
         return '<p class="muted">None</p>'
     }
@@ -342,8 +349,12 @@ function ConvertTo-HtmlTable {
     [void]$sb.AppendLine('</tr></thead><tbody>')
     foreach ($row in $rowList) {
         [void]$sb.Append('<tr>')
+        $present = @($row.PSObject.Properties.Name)
         foreach ($c in $Columns) {
-            $val = $row.$c
+            # Same class of failure as above: the hardcoded column lists assume
+            # every query returned every column, and under strict mode reading a
+            # property that is not there throws rather than yielding $null.
+            $val = if ($present -contains $c) { $row.$c } else { $null }
             $cls = ''
             if ($c -eq 'Severity') {
                 $cls = ' class="sev-' + ([string]$val).ToLowerInvariant() + '"'

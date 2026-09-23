@@ -65,6 +65,12 @@ using (var scope = app.Services.CreateScope())
         WHERE TriggeredBy = N'html-report'
            OR ReportJsonPath LIKE N'%sql-estate-20260824-182501.json';
         """);
+
+    // Re-rank findings against the current register. This runs after the sample
+    // data is deleted so it does not waste work on rows about to go, and after
+    // CtInventorySchema so ct_servers.environment is guaranteed to exist.
+    await SeverityRerankPass.ApplyAsync(
+        db, scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("SeverityPolicy"));
 }
 
 if (!app.Environment.IsDevelopment())

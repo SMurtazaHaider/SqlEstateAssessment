@@ -68,13 +68,19 @@
             </div>
             <div class="col-md-4">
                 <label asp-for="Environment" class="form-label"></label>
-                <input asp-for="Environment" class="form-control" list="environmentOptions" />
-                <datalist id="environmentOptions">
+                <select asp-for="Environment" class="form-select">
+                    <option value="">-- not set (treated as Production) --</option>
                     @foreach (var o in Model.EnvironmentOptions)
                     {
-                        <option value="@o"></option>
+                        <option value="@o">@o</option>
                     }
-                </datalist>
+                </select>
+                <span asp-validation-for="Environment" class="text-danger"></span>
+                <div class="form-text">
+                    Findings on UAT and Staging servers are capped at High, and on Development and Test
+                    servers at Medium. Security and encryption findings are never capped. Anything left
+                    unset is treated as Production, so a blank never hides a Critical.
+                </div>
             </div>
             <div class="col-md-4">
                 <label asp-for="IpAddress" class="form-label"></label>

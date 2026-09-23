@@ -1,0 +1,23 @@
+@*
+    Shared grid toolbar: page size + search box.
+
+    site.js reuses this markup when it finds it (attachTable) and builds an
+    identical toolbar when a view does not declare one, so the default page size
+    lives here and in PAGE_SIZE_DEFAULT in site.js - keep the two in step.
+
+    The Export to Excel button is added by site.js at runtime; it is not declared
+    here, so every grid gets it whether or not the view supplies a toolbar.
+*@
+<div class="table-toolbar">
+    <label class="table-page-size-label">
+        Show
+        <select class="form-select form-select-sm table-page-size">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+        </select>
+        entries
+    </label>
+    <input type="search" class="form-control table-search-input" placeholder="Search all columns..." aria-label="Search all columns" autocomplete="off" />
+</div>

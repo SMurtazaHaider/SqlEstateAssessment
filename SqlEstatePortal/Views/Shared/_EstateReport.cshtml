@@ -6,6 +6,47 @@
         .ToList();
     var servers = Model.Servers.OrderBy(s => s.ServerName).ToList();
     int CountSev(string sev) => findings.Count(f => string.Equals(f.Severity, sev, StringComparison.OrdinalIgnoreCase));
+
+    // Sysadmins are split by account class so the handful that matter are not
+    // buried under the service SIDs setup puts on every instance. See
+    // Services/SysadminClassifier.cs for why the built-ins are classified rather
+    // than dropped.
+    var sysadminsByClass = Model.Sysadmins
+        .OrderBy(x => x.ServerName)
+        .ThenBy(x => x.Name)
+        .GroupBy(SysadminClassifier.Classify)
+        .ToDictionary(g => g.Key, g => g.ToList());
+
+    List<AssessmentSysadmin> SysadminsIn(SysadminClassifier.AccountClass c) =>
+        sysadminsByClass.TryGetValue(c, out var list) ? list : new List<AssessmentSysadmin>();
+
+    var sysadminTabs = new[]
+    {
+        (Class: SysadminClassifier.AccountClass.WindowsUser,
+         Id: "users",
+         Label: "Windows users",
+         Blurb: "Named Windows accounts with full control of the instance. An individual person holding sysadmin is the usual audit finding - a group is easier to review and to revoke when someone leaves."),
+
+        (Class: SysadminClassifier.AccountClass.WindowsGroup,
+         Id: "groups",
+         Label: "Windows groups",
+         Blurb: "Windows groups whose members all hold sysadmin. Membership lives in Active Directory, so this lists the grant, not the people it reaches - check the group itself to see who that is."),
+
+        (Class: SysadminClassifier.AccountClass.SqlLogin,
+         Id: "sqllogins",
+         Label: "SQL logins",
+         Blurb: "SQL authentication logins in sysadmin. Anything here other than sa is worth questioning, and sa itself is worth disabling or renaming."),
+
+        (Class: SysadminClassifier.AccountClass.UnknownService,
+         Id: "unrecognised",
+         Label: "Extension service accounts",
+         Blurb: "Service accounts holding sysadmin that SQL Server setup does not create - Azure extensions, backup agents, monitoring tools. Each one is software with full control of the instance, so each should be accounted for."),
+
+        (Class: SysadminClassifier.AccountClass.BuiltInService,
+         Id: "builtin",
+         Label: "Built-in service accounts",
+         Blurb: "Provisioned by SQL Server setup on every instance and listed here for completeness. Their absence matters more than their presence - a missing Agent account will break SQL Agent jobs.")
+    };
 }
 <div class="estate-report">
     <ul class="nav nav-tabs estate-tabs" role="tablist">
@@ -52,7 +93,7 @@
                 <button type="button" class="sev-chip sev-low" data-severity="Low">Low (@CountSev("Low"))</button>
                 <button type="button" class="sev-chip sev-info" data-severity="Info">Info (@CountSev("Info"))</button>
             </div>
-            <table class="table table-sm">
+            <table class="table table-sm" data-export-name="Findings">
                 <thead>
                     @await Html.PartialAsync("_ColumnFilters", new[] { "Severity", "Area", "Server", "Finding", "Recommendation" })
                 </thead>
@@ -60,7 +101,16 @@
                 @foreach (var f in findings)
                 {
                     <tr data-server="@f.ServerName" data-severity="@f.Severity">
-                        <td class="sev-@f.Severity.ToLowerInvariant()">@f.Severity</td>
+                        <td class="sev-@f.Severity.ToLowerInvariant()">
+                            @f.Severity
+                            @if (FindingSeverityPolicy.WasCapped(f))
+                            {
+                                @* Show the cap rather than hide it: without this nobody can tell a
+                                   genuine Medium from a Critical that was re-ranked, and the rule
+                                   becomes impossible to audit or tune. *@
+                                <span class="muted d-block sev-capped">from @f.BaseSeverity</span>
+                            }
+                        </td>
                         <td>@f.Area</td>
                         <td>@f.ServerName</td>
                         <td>@f.Finding</td>
@@ -73,7 +123,7 @@
         </div>
 
         <div class="tab-pane fade" id="tab-status">
-            <table class="table table-sm">
+            <table class="table table-sm" data-export-name="Estate status">
                 <thead>
                     @await Html.PartialAsync("_ColumnFilters", new[] { "Server", "Reachable", "Product", "Support", "Edition", "Version", "CPU", "Memory MB", "Started" })
                 </thead>
@@ -97,7 +147,7 @@
         </div>
 
         <div class="tab-pane fade" id="tab-databases">
-            <table class="table table-sm">
+            <table class="table table-sm" data-export-name="Databases">
                 <thead>
                     @await Html.PartialAsync("_ColumnFilters", new[] { "Server", "Name", "State", "Recovery", "Compat", "Page verify", "Encrypted", "Data MB", "Log MB", "Owner" })
                 </thead>
@@ -123,7 +173,7 @@
 
         <div class="tab-pane fade" id="tab-backups">
             <p class="muted">Last full / differential / log backup times from <code>msdb.dbo.backupset</code> for each database.</p>
-            <table class="table table-sm">
+            <table class="table table-sm" data-export-name="Last backups">
                 <thead>
                     @await Html.PartialAsync("_ColumnFilters", new[]
                     {
@@ -146,7 +196,7 @@
         </div>
 
         <div class="tab-pane fade" id="tab-volumes">
-            <table class="table table-sm">
+            <table class="table table-sm" data-export-name="Volumes">
                 <thead>
                     @await Html.PartialAsync("_ColumnFilters", new[] { "Server", "Mount", "Name", "Total GB", "Free GB", "Free %" })
                 </thead>
@@ -167,7 +217,7 @@
         </div>
 
         <div class="tab-pane fade" id="tab-services">
-            <table class="table table-sm">
+            <table class="table table-sm" data-export-name="Services">
                 <thead>
                     @await Html.PartialAsync("_ColumnFilters", new[] { "Server", "Service", "Startup", "Status", "Account", "IFI" })
                 </thead>
@@ -188,7 +238,7 @@
         </div>
 
         <div class="tab-pane fade" id="tab-waits">
-            <table class="table table-sm">
+            <table class="table table-sm" data-export-name="Top waits">
                 <thead>
                     @await Html.PartialAsync("_ColumnFilters", new[] { "Server", "Wait type", "Tasks", "Wait ms", "Signal ms", "%" })
                 </thead>
@@ -209,27 +259,57 @@
         </div>
 
         <div class="tab-pane fade" id="tab-sysadmins">
-            <table class="table table-sm">
-                <thead>
-                    @await Html.PartialAsync("_ColumnFilters", new[] { "Server", "Name", "Type", "Disabled", "Created" })
-                </thead>
-                <tbody>
-                @foreach (var a in Model.Sysadmins.OrderBy(x => x.ServerName))
+            <ul class="nav nav-pills estate-subtabs" role="tablist">
+                @for (var i = 0; i < sysadminTabs.Length; i++)
                 {
-                    <tr data-server="@a.ServerName">
-                        <td>@a.ServerName</td>
-                        <td>@a.Name</td>
-                        <td>@a.TypeDesc</td>
-                        <td>@(a.IsDisabled ? "Yes" : "No")</td>
-                        <td>@a.CreateDate?.ToString("yyyy-MM-dd HH:mm")</td>
-                    </tr>
+                    var t = sysadminTabs[i];
+                    <li class="nav-item">
+                        <button class="nav-link @(i == 0 ? "active" : null)" data-bs-toggle="tab"
+                                data-bs-target="#tab-sysadmins-@t.Id" type="button" role="tab">
+                            @t.Label (@SysadminsIn(t.Class).Count)
+                        </button>
+                    </li>
                 }
-                </tbody>
-            </table>
+            </ul>
+
+            <div class="tab-content estate-subtab-content">
+                @for (var i = 0; i < sysadminTabs.Length; i++)
+                {
+                    var t = sysadminTabs[i];
+                    var rows = SysadminsIn(t.Class);
+                    <div class="tab-pane fade @(i == 0 ? "show active" : null)" id="tab-sysadmins-@t.Id" role="tabpanel">
+                        <p class="muted">@t.Blurb</p>
+                        @if (rows.Count == 0)
+                        {
+                            <p class="muted">None on the assessed instances.</p>
+                        }
+                        else
+                        {
+                            <table class="table table-sm" data-export-name="Sysadmins - @t.Label">
+                                <thead>
+                                    @await Html.PartialAsync("_ColumnFilters", new[] { "Server", "Name", "Type", "Disabled", "Created" })
+                                </thead>
+                                <tbody>
+                                @foreach (var a in rows)
+                                {
+                                    <tr data-server="@a.ServerName">
+                                        <td>@a.ServerName</td>
+                                        <td>@a.Name</td>
+                                        <td>@a.TypeDesc</td>
+                                        <td>@(a.IsDisabled ? "Yes" : "No")</td>
+                                        <td>@a.CreateDate?.ToString("yyyy-MM-dd HH:mm")</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                }
+            </div>
         </div>
 
         <div class="tab-pane fade" id="tab-jobs">
-            <table class="table table-sm">
+            <table class="table table-sm" data-export-name="SQL Agent jobs">
                 <thead>
                     @await Html.PartialAsync("_ColumnFilters", new[] { "Server", "Job", "Enabled", "Last status", "Last run", "Message" })
                 </thead>
@@ -257,7 +337,7 @@
             }
             else
             {
-                <table class="table table-sm">
+                <table class="table table-sm" data-export-name="Linked servers">
                     <thead>
                         @await Html.PartialAsync("_ColumnFilters", new[]
                         {
@@ -289,7 +369,7 @@
             }
             else
             {
-                <table class="table table-sm">
+                <table class="table table-sm" data-export-name="SQL logins">
                     <thead>
                         @await Html.PartialAsync("_ColumnFilters", new[]
                         {
@@ -323,7 +403,7 @@
             }
             else
             {
-                <table class="table table-sm">
+                <table class="table table-sm" data-export-name="Availability groups">
                     <thead>
                         @await Html.PartialAsync("_ColumnFilters", new[]
                         {
@@ -349,7 +429,21 @@
         </div>
 
         <div class="tab-pane fade" id="tab-certificates">
-            <h3 class="section-title">Database certificates</h3>
+            <ul class="nav nav-pills estate-subtabs" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-certs-database" type="button" role="tab">
+                        Database certificates (@Model.Certificates.Count())
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-certs-tls" type="button" role="tab">
+                        TLS / connection certificates (@Model.TlsCertificates.Count())
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content estate-subtab-content">
+            <div class="tab-pane fade show active" id="tab-certs-database" role="tabpanel">
             <p class="muted">Certificates from <code>sys.certificates</code>, matched to the databases whose encryption key they protect. Expiry is measured as at the time of the run.</p>
             @if (!Model.Certificates.Any())
             {
@@ -357,11 +451,11 @@
             }
             else
             {
-                <table class="table table-sm">
+                <table class="table table-sm" data-export-name="Database certificates">
                     <thead>
                         @await Html.PartialAsync("_ColumnFilters", new[]
                         {
-                            "Server", "Certificate", "Subject", "Issuer", "Starts", "Expires", "Days to expiry", "Protects", "Private key", "Thumbprint"
+                            "Server", "Starts", "Expires", "Days to expiry", "Certificate", "Subject", "Issuer", "Protects", "Private key", "Thumbprint"
                         })
                     </thead>
                     <tbody>
@@ -369,12 +463,9 @@
                     {
                         <tr data-server="@c.ServerName">
                             <td>@c.ServerName</td>
-                            <td>@c.CertificateName</td>
-                            <td>@c.Subject</td>
-                            <td>@c.IssuerName</td>
-                            <td>@(c.StartDate?.ToString("yyyy-MM-dd") ?? "")</td>
-                            <td>@(c.ExpiryDate?.ToString("yyyy-MM-dd") ?? "")</td>
-                            <td>
+                            <td class="text-nowrap">@(c.StartDate?.ToString("yyyy-MM-dd") ?? "")</td>
+                            <td class="text-nowrap">@(c.ExpiryDate?.ToString("yyyy-MM-dd") ?? "")</td>
+                            <td class="text-nowrap">
                                 @if (c.DaysToExpiry is int d)
                                 {
                                     if (d < 0)
@@ -391,6 +482,9 @@
                                     }
                                 }
                             </td>
+                            <td>@c.CertificateName</td>
+                            <td>@c.Subject</td>
+                            <td>@c.IssuerName</td>
                             <td>@c.ProtectedDatabases</td>
                             <td>@c.PrivateKeyEncryption</td>
                             <td><code>@c.Thumbprint</code></td>
@@ -400,7 +494,9 @@
                 </table>
             }
 
-            <h3 class="section-title">TLS / connection certificates</h3>
+            </div>
+
+            <div class="tab-pane fade" id="tab-certs-tls" role="tabpanel">
             <p class="muted">The certificate each instance presents for encrypted client connections, read from <code>SuperSocketNetLib</code>. A blank thumbprint means SQL Server is self-signing.</p>
             @if (!Model.TlsCertificates.Any())
             {
@@ -408,7 +504,7 @@
             }
             else
             {
-                <table class="table table-sm">
+                <table class="table table-sm" data-export-name="TLS certificates">
                     <thead>
                         @await Html.PartialAsync("_ColumnFilters", new[]
                         {
@@ -429,11 +525,13 @@
                     </tbody>
                 </table>
             }
+            </div>
+            </div>
         </div>
 
         <div class="tab-pane fade" id="tab-configure">
             <p class="muted">Full <code>sp_configure</code> catalogue from <code>sys.configurations</code> (includes advanced options).</p>
-            <table class="table table-sm">
+            <table class="table table-sm" data-export-name="sp_configure">
                 <thead>
                     @await Html.PartialAsync("_ColumnFilters", new[]
                     {

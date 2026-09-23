@@ -196,20 +196,22 @@ GO
 GO
 
 IF COL_LENGTH('ct_applications','business_criticality_original') IS NOT NULL
-              UPDATE dbo.ct_applications
-                 SET business_criticality = business_criticality_original
-               WHERE business_criticality_original IS NOT NULL;
+  EXEC sp_executesql N'
+      UPDATE dbo.ct_applications
+         SET business_criticality = business_criticality_original
+       WHERE business_criticality_original IS NOT NULL;';
 GO
 
 IF COL_LENGTH('ct_applications','business_criticality_original') IS NOT NULL
-              UPDATE dbo.ct_applications
-                 SET business_criticality = NULL
-               WHERE business_criticality_original IS NULL
-                 AND business_criticality IN (N'Critical', N'Non Critical');
+  EXEC sp_executesql N'
+      UPDATE dbo.ct_applications
+         SET business_criticality = NULL
+       WHERE business_criticality_original IS NULL
+         AND business_criticality IN (N''Critical'', N''Non Critical'');';
 GO
 
 IF COL_LENGTH('ct_applications','business_criticality_original') IS NOT NULL
-              ALTER TABLE dbo.ct_applications DROP COLUMN business_criticality_original;
+  EXEC sp_executesql N'ALTER TABLE dbo.ct_applications DROP COLUMN business_criticality_original;';
 GO
 
 

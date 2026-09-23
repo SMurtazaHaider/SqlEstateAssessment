@@ -267,18 +267,23 @@ public class AssessmentRunnerService
 
         foreach (var f in Enumerate(root, "Findings"))
         {
+            var raised = GetString(f, "Severity");
             run.Findings.Add(new AssessmentFinding
             {
                 ServerName = GetString(f, "Server"),
-                Severity = GetString(f, "Severity"),
+                Severity = raised,
+                BaseSeverity = raised,
                 Area = GetString(f, "Area"),
                 Finding = GetString(f, "Finding"),
                 Recommendation = GetString(f, "Recommendation")
             });
         }
 
-        if (run.InfoCount == 0)
-            run.InfoCount = run.Findings.Count(x => string.Equals(x.Severity, "Info", StringComparison.OrdinalIgnoreCase));
+        // Cap severities by the server's environment, then take the counts from
+        // the capped findings rather than from the collector's own totals in
+        // ExecutiveSummary - otherwise the Summary tiles would keep reporting
+        // the uncapped numbers and disagree with the Findings tab.
+        await ApplySeverityPolicyAsync(run, cancellationToken);
 
         foreach (var s in Enumerate(root, "Servers"))
         {
@@ -522,6 +527,54 @@ public class AssessmentRunnerService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies the environment cap to a run's findings and recomputes its
+    /// severity counts. Safe to call more than once: the policy always works
+    /// from BaseSeverity, so a second pass over already-capped findings is a
+    /// no-op rather than a compounding downgrade.
+    /// </summary>
+    private async Task ApplySeverityPolicyAsync(AssessmentRun run, CancellationToken cancellationToken)
+    {
+        var environments = await LoadServerEnvironmentsAsync(cancellationToken);
+        var changed = FindingSeverityPolicy.ApplyToFindings(run.Findings, environments);
+
+        run.CriticalCount = CountSeverity(run, FindingSeverityPolicy.Critical);
+        run.HighCount = CountSeverity(run, FindingSeverityPolicy.High);
+        run.MediumCount = CountSeverity(run, FindingSeverityPolicy.Medium);
+        run.LowCount = CountSeverity(run, FindingSeverityPolicy.Low);
+        run.InfoCount = CountSeverity(run, FindingSeverityPolicy.Info);
+
+        if (changed > 0)
+            _logger.LogInformation(
+                "Assessment #{RunId}: {Changed} of {Total} findings re-ranked by environment.",
+                run.Id, changed, run.Findings.Count);
+    }
+
+    private static int CountSeverity(AssessmentRun run, string severity) =>
+        run.Findings.Count(f => string.Equals(f.Severity, severity, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Environment per server name from the register. A server the register does
+    /// not know about is absent from the map, which the policy reads as
+    /// Production - the deliberate fail-safe.
+    /// </summary>
+    private async Task<Dictionary<string, string?>> LoadServerEnvironmentsAsync(CancellationToken cancellationToken)
+    {
+        var rows = await _db.CtServers
+            .AsNoTracking()
+            .Select(s => new { s.ServerName, s.Environment })
+            .ToListAsync(cancellationToken);
+
+        var map = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in rows)
+        {
+            var name = (r.ServerName ?? string.Empty).Trim();
+            if (name.Length == 0) continue;
+            map[name] = r.Environment;
+        }
+        return map;
     }
 
     private static IEnumerable<JsonElement> Enumerate(JsonElement parent, string name)

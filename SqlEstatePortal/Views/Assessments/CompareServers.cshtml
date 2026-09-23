@@ -170,9 +170,6 @@ else
     }
 
     <div class="panel">
-        <div class="d-flex justify-content-end mb-3">
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="qaCompareExport">Export CSV</button>
-        </div>
         <table class="table table-sm table-hover align-middle" id="qaCompareTable">
             <thead>
                 @await Html.PartialAsync("_ColumnFilters", new[] { "Parameter", "Key", "Server #1", "Value (Server #1)", "Server #2", "Value (Server #2)", "Match" })
@@ -292,41 +289,15 @@ else
             if (run1) run1.addEventListener('change', function () { loadServers(run1, server1); });
             if (run2) run2.addEventListener('change', function () { loadServers(run2, server2); });
 
+            // The generic grid toolbar supplies the Export to Excel button
+            // (site.js). It honours the search box and the per-column filters,
+            // which the old bespoke button did not; all it needs from here is
+            // the file name, which follows the two servers on screen.
             const table = document.getElementById('qaCompareTable');
-            const exportBtn = document.getElementById('qaCompareExport');
-            if (exportBtn && table) {
-                exportBtn.addEventListener('click', function () {
-                    const s1 = (document.getElementById('server1') || {}).value || 'Server1';
-                    const s2 = (document.getElementById('server2') || {}).value || 'Server2';
-                    const active = document.querySelector('.qa-tile.active[data-match-filter]');
-                    const filter = active ? (active.getAttribute('data-match-filter') || '') : '';
-                    const lines = [];
-                    const headers = ['Parameter', 'Key', 'Server #1', 'Value (Server #1)', 'Server #2', 'Value (Server #2)', 'Match'];
-                    lines.push(headers.map(csvEscape).join(','));
-                    table.querySelectorAll('tbody tr').forEach(function (row) {
-                        const match = row.getAttribute('data-match') || '';
-                        if (filter && match !== filter) return;
-                        const cells = Array.prototype.map.call(row.cells, function (cell) {
-                            return csvEscape((cell.textContent || '').replace(/\s+/g, ' ').trim());
-                        });
-                        lines.push(cells.join(','));
-                    });
-                    const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'QA Report - ' + s1 + '__' + s2 + '.csv';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    URL.revokeObjectURL(url);
-                });
-            }
-
-            function csvEscape(value) {
-                const text = String(value == null ? '' : value);
-                if (/[",\r\n]/.test(text)) return '"' + text.replace(/"/g, '""') + '"';
-                return text;
+            if (table) {
+                const s1 = (document.getElementById('server1') || {}).value || 'Server1';
+                const s2 = (document.getElementById('server2') || {}).value || 'Server2';
+                table.dataset.exportName = 'QA Report - ' + s1 + '__' + s2;
             }
         });
     </script>

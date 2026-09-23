@@ -480,17 +480,26 @@ END;",
             "IF COL_LENGTH('ct_applications','criticality_type') IS NULL ALTER TABLE dbo.ct_applications ADD criticality_type nvarchar(20) NULL;",
             // Server-derived criticality briefly lived in business_criticality. Put the
             // business values back, then retire the snapshot column so this runs once.
+            //
+            // These MUST go through sp_executesql. SQL Server compiles a whole batch
+            // before running it, and a reference to a column that does not exist is a
+            // compile-time error - the IF never gets the chance to skip it. (Deferred
+            // name resolution covers missing tables, not missing columns.) On a
+            // database that never ran the interim build the column is absent, so the
+            // statement has to stay uncompiled until we know it is there.
             @"IF COL_LENGTH('ct_applications','business_criticality_original') IS NOT NULL
-              UPDATE dbo.ct_applications
-                 SET business_criticality = business_criticality_original
-               WHERE business_criticality_original IS NOT NULL;",
+              EXEC sp_executesql N'
+                  UPDATE dbo.ct_applications
+                     SET business_criticality = business_criticality_original
+                   WHERE business_criticality_original IS NOT NULL;';",
             @"IF COL_LENGTH('ct_applications','business_criticality_original') IS NOT NULL
-              UPDATE dbo.ct_applications
-                 SET business_criticality = NULL
-               WHERE business_criticality_original IS NULL
-                 AND business_criticality IN (N'Critical', N'Non Critical');",
+              EXEC sp_executesql N'
+                  UPDATE dbo.ct_applications
+                     SET business_criticality = NULL
+                   WHERE business_criticality_original IS NULL
+                     AND business_criticality IN (N''Critical'', N''Non Critical'');';",
             @"IF COL_LENGTH('ct_applications','business_criticality_original') IS NOT NULL
-              ALTER TABLE dbo.ct_applications DROP COLUMN business_criticality_original;",
+              EXEC sp_executesql N'ALTER TABLE dbo.ct_applications DROP COLUMN business_criticality_original;';",
             "IF COL_LENGTH('ct_database','criticality_type') IS NULL ALTER TABLE dbo.ct_database ADD criticality_type nvarchar(20) NULL;",
             "IF COL_LENGTH('ct_database','server_id') IS NULL ALTER TABLE dbo.ct_database ADD server_id int NULL;",
             @"IF COL_LENGTH('ct_database','server_id') IS NOT NULL

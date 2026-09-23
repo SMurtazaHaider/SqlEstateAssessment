@@ -342,13 +342,15 @@
   initSearchableSelects(document);
 
   var PAGE_SIZES = [10, 25, 50, 100];
+  // Keep in step with the selected option in Views/Shared/_TableToolbar.cshtml.
+  var PAGE_SIZE_DEFAULT = 100;
 
   function rowText(row) {
     return (row.textContent || '').replace(/\s+/g, ' ').toLowerCase();
   }
 
   function getState(table) {
-    if (!table._tableUi) table._tableUi = { page: 1, pageSize: 10, sortCol: null, sortDir: 'asc' };
+    if (!table._tableUi) table._tableUi = { page: 1, pageSize: PAGE_SIZE_DEFAULT, sortCol: null, sortDir: 'asc' };
     return table._tableUi;
   }
 
@@ -402,6 +404,143 @@
       queries[i] = input ? input.value.trim().toLowerCase() : '';
     });
     return queries;
+  }
+
+  // ---------------------------------------------------------------------
+  // CSV export
+  //
+  // Every grid built by attachTable gets an "Export to Excel" button. The
+  // export is a UTF-8 CSV with a BOM so Excel picks the encoding up without
+  // being told. It contains every row matching the current search, column
+  // filters and estate context (server, severity, QA match tile) - not just
+  // the page on screen - because it reuses rowMatches, the same predicate
+  // refreshTable uses to decide what is on the grid.
+  // ---------------------------------------------------------------------
+
+  function csvEscape(value) {
+    var text = String(value == null ? '' : value);
+    if (/[",\r\n]/.test(text)) return '"' + text.replace(/"/g, '""') + '"';
+    return text;
+  }
+
+  function cellExportText(cell) {
+    if (!cell) return '';
+    return (cell.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  // Columns worth exporting: everything except the UI-only ones (action
+  // links, checkbox pickers, unlabelled spacers). A view can force a column
+  // out with data-export="skip" on its header cell.
+  function exportColumns(table) {
+    var headRow = headerSortRow(table);
+    if (!headRow) return null;
+    var columns = [];
+    Array.prototype.forEach.call(headRow.cells, function (th, index) {
+      if ((th.getAttribute('data-export') || '') === 'skip') return;
+      if (th.querySelector('input, select, textarea')) return;
+      var label = (th.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!label) return;
+      if (/^(actions?|options)$/i.test(label)) return;
+      columns.push({ index: index, label: label });
+    });
+    return columns.length ? columns : null;
+  }
+
+  // A placeholder row ("No data", "Loading…") is one wide cell, not data.
+  function isPlaceholderRow(row) {
+    return row.cells.length === 1 && (row.cells[0].colSpan || 1) > 1;
+  }
+
+  function nearestHeadingText(table) {
+    var node = table;
+    while (node && node !== document.body) {
+      var sib = node.previousElementSibling;
+      while (sib) {
+        if (/^H[1-4]$/.test(sib.tagName)) return sib.textContent;
+        var inner = sib.querySelector ? sib.querySelector('h1, h2, h3, h4') : null;
+        if (inner) return inner.textContent;
+        sib = sib.previousElementSibling;
+      }
+      node = node.parentElement;
+    }
+    var h1 = document.querySelector('main h1') || document.querySelector('h1');
+    return h1 ? h1.textContent : (document.title || 'export');
+  }
+
+  function exportFileName(table) {
+    var explicit = (table.getAttribute('data-export-name') || '').trim();
+    var base = explicit || nearestHeadingText(table) || 'export';
+    base = base.replace(/\s+/g, ' ').trim().replace(/[\\/:*?"<>|]/g, '').slice(0, 80);
+    if (!base) base = 'export';
+    var now = new Date();
+    var stamp = now.getFullYear() +
+      ('0' + (now.getMonth() + 1)).slice(-2) +
+      ('0' + now.getDate()).slice(-2);
+    return base + ' - ' + stamp + '.csv';
+  }
+
+  function exportTableCsv(table) {
+    if (!table || !table.tBodies.length) return;
+    var columns = exportColumns(table);
+    if (!columns) return;
+
+    var query = table._searchInput ? table._searchInput.value.trim().toLowerCase() : '';
+    var colQueries = columnQueries(table);
+    var ctx = estateContext(table);
+
+    var lines = [columns.map(function (c) { return csvEscape(c.label); }).join(',')];
+    Array.prototype.forEach.call(table.querySelectorAll('tbody tr'), function (row) {
+      if (isPlaceholderRow(row)) return;
+      if (!rowMatches(row, query, colQueries, ctx)) return;
+      lines.push(columns.map(function (c) {
+        return csvEscape(cellExportText(row.cells[c.index]));
+      }).join(','));
+    });
+
+    var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = exportFileName(table);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  window.exportTableCsv = exportTableCsv;
+
+  // Views declare their own toolbars in some places and let attachTable build
+  // one in others. Normalising to a right-hand actions group keeps the search
+  // box and the export button together under the toolbar's space-between.
+  function toolbarActions(toolbar) {
+    var actions = toolbar.querySelector(':scope > .table-toolbar-actions');
+    if (actions) return actions;
+    actions = document.createElement('div');
+    actions.className = 'table-toolbar-actions';
+    var search = toolbar.querySelector(':scope > .table-search-input');
+    if (search) {
+      toolbar.insertBefore(actions, search);
+      actions.appendChild(search);
+    } else {
+      toolbar.appendChild(actions);
+    }
+    return actions;
+  }
+
+  function attachExportButton(table, toolbar) {
+    if (!toolbar) return;
+    if (table.hasAttribute('data-no-export')) return;
+    if (!exportColumns(table)) return;
+    if (toolbar.querySelector(':scope > .table-toolbar-actions > .table-export-btn')) return;
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-outline-secondary btn-sm table-export-btn';
+    btn.textContent = 'Export to Excel';
+    btn.title = 'Download every row matching the current filters as a CSV file that opens in Excel';
+    btn.addEventListener('click', function () { exportTableCsv(table); });
+    toolbarActions(toolbar).appendChild(btn);
   }
 
   function cellSortKey(cell) {
@@ -689,7 +828,7 @@
         var opt = document.createElement('option');
         opt.value = String(n);
         opt.textContent = String(n);
-        if (n === 10) opt.selected = true;
+        if (n === PAGE_SIZE_DEFAULT) opt.selected = true;
         sizeSelect.appendChild(opt);
       });
       sizeWrap.appendChild(sizeSelect);
@@ -724,6 +863,7 @@
 
     bindColumnFilters(table);
     bindColumnSort(table);
+    attachExportButton(table, toolbar);
 
     var pager = table.nextElementSibling;
     if (!pager || !pager.classList.contains('table-pager')) {
@@ -828,11 +968,15 @@
       }
     }
 
+    // current is kept as a float and only rounded for display. With the
+    // decelerating ticker below the steps become fractions of a percent, and
+    // rounding the stored value would swallow them and freeze the bar.
     function setProgress(value) {
-      current = Math.max(1, Math.min(100, Math.round(value)));
-      bar.style.width = current + '%';
-      pctLabel.textContent = current + '%';
-      if (track) track.setAttribute('aria-valuenow', String(current));
+      current = Math.max(1, Math.min(100, value));
+      var shown = Math.round(current);
+      bar.style.width = shown + '%';
+      pctLabel.textContent = shown + '%';
+      if (track) track.setAttribute('aria-valuenow', String(shown));
     }
 
     function stopTicker() {
@@ -842,14 +986,33 @@
       }
     }
 
+    // The bar used to climb in fixed steps and stop dead at 92, so on a run
+    // longer than ~20s it sat frozen and looked hung. Instead each tick closes a
+    // fraction of the gap to the ceiling: brisk at first, slower as it goes, and
+    // never quite arriving. A long run keeps visibly counting instead of
+    // freezing, and a short one still snaps to 100 when the work finishes.
+    //
+    // The ceiling is 99, not 100: the last percent belongs to the backend
+    // actually finishing. Showing 100 while still waiting is the one thing more
+    // annoying than stalling at 92.
+    // Tuned against real run lengths: ~59% at 30s, ~83% at 60s, ~93% at 90s,
+    // ~96% at two minutes, reaching 99 only after about two and a half. A
+    // typical 60-90s assessment therefore sees the number moving the whole way
+    // through rather than parked, which was the actual complaint - the old curve
+    // hit its 92 ceiling after roughly 22 seconds and sat there.
+    var PROGRESS_CEILING = 99;
+    var PROGRESS_EASE = 0.015;    // fraction of the remaining gap per tick
+    var PROGRESS_MIN_STEP = 0.02; // keeps the number climbing near the ceiling
+    var PROGRESS_TICK_MS = 500;
+
     function startTicker() {
       stopTicker();
       setProgress(1);
       timer = setInterval(function () {
-        if (current >= 92) return;
-        var step = current < 40 ? 3 : current < 70 ? 2 : 1;
-        setProgress(current + step);
-      }, 450);
+        var remaining = PROGRESS_CEILING - current;
+        if (remaining <= 0) return;
+        setProgress(current + Math.max(PROGRESS_MIN_STEP, remaining * PROGRESS_EASE));
+      }, PROGRESS_TICK_MS);
     }
 
     function showOverlay(title, msg) {

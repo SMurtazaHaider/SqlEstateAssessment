@@ -145,7 +145,7 @@ public class InventoryServersController : Controller
             CanEdit = await _permissions.HasAsync(User, AppModules.InventoryServers, "update"),
             ServerNameOptions = DistinctSorted(all.Select(s => s.ServerName)),
             ServerTypeOptions = DistinctSorted(all.Select(s => s.ServerType)),
-            EnvironmentOptions = DistinctSorted(all.Select(s => s.Environment)),
+            EnvironmentOptions = DistinctSorted(all.Select(s => s.Environment).Concat(FindingSeverityPolicy.EnvironmentValues)),
             // Always offer both reachability states, so the default selection is
             // still shown even when no server currently carries that status.
             StatusOptions = DistinctSorted(all.Select(s => s.ServerStatus)
@@ -530,6 +530,14 @@ public class InventoryServersController : Controller
         if (Norm(model.AuthType) is string auth
             && !AuthTypeValues.Contains(auth, StringComparer.OrdinalIgnoreCase))
             ModelState.AddModelError(nameof(model.AuthType), "Choose Windows Auth or MFA.");
+
+        // Environment decides whether a finding may be reported as Critical, so
+        // it is a controlled value rather than free text: a typo here would
+        // silently downgrade a production server's findings.
+        if (Norm(model.Environment) is string env
+            && !FindingSeverityPolicy.EnvironmentValues.Contains(env, StringComparer.OrdinalIgnoreCase))
+            ModelState.AddModelError(nameof(model.Environment),
+                "Choose one of the listed environments. Findings on UAT and Development servers are capped below Critical, so this cannot be free text.");
     }
 
     /// <summary>
@@ -664,7 +672,7 @@ public class InventoryServersController : Controller
         model.ServerTypeOptions = DistinctSorted(servers.Select(s => s.ServerType).Concat(ServerTypeValues));
         model.CriticalityOptions = CriticalityValues;
         model.AuthTypeOptions = AuthTypeValues;
-        model.EnvironmentOptions = DistinctSorted(servers.Select(s => s.Environment));
+        model.EnvironmentOptions = FindingSeverityPolicy.EnvironmentValues;
 
         var name = Norm(model.ServerName);
 

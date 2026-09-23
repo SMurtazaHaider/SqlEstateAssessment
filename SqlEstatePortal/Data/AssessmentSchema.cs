@@ -191,6 +191,11 @@ public static class AssessmentSchema
                 CertificateSource nvarchar(200) NULL,
                 ForceEncryption bit NOT NULL CONSTRAINT DF_AssessmentTlsCertificates_ForceEncryption DEFAULT 0
               );",
+            // Severity as the collector raised it, before the environment cap in
+            // FindingSeverityPolicy. Nullable: rows imported before the policy
+            // existed have no original to record, and the re-rank pass fills them
+            // from their current Severity the first time it runs.
+            "IF COL_LENGTH('AssessmentFindings','BaseSeverity') IS NULL ALTER TABLE AssessmentFindings ADD BaseSeverity nvarchar(30) NULL;",
             "IF COL_LENGTH('AssessmentDatabases','CollationName') IS NULL ALTER TABLE AssessmentDatabases ADD CollationName nvarchar(128) NULL;",
             "IF COL_LENGTH('AssessmentDatabases','CreationDate') IS NULL ALTER TABLE AssessmentDatabases ADD CreationDate datetime2 NULL;",
             @"IF OBJECT_ID('InventorySyncBatches','U') IS NULL

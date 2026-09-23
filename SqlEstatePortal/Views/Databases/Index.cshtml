@@ -141,19 +141,7 @@
 
 <div class="panel register-table-panel">
     <div class="table-scroll">
-        <div class="table-toolbar">
-            <label class="table-page-size-label">
-                Show
-                <select class="form-select form-select-sm table-page-size">
-                    <option value="10">10</option>
-                    <option value="25" selected>25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-                entries
-            </label>
-            <input type="search" class="form-control table-search-input" placeholder="Search all columns..." aria-label="Search all columns" autocomplete="off" />
-        </div>
+        @await Html.PartialAsync("_TableToolbar")
         <table class="table table-hover align-middle register-table">
             <thead>
             @await Html.PartialAsync("_ColumnFilters", new[]

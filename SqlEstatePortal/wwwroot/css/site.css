@@ -684,6 +684,20 @@ button.stat-card:hover {
   max-width: 280px;
 }
 
+/* Right-hand group in a grid toolbar: search box plus the export button. */
+.table-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.table-export-btn {
+  white-space: nowrap;
+}
+
 .column-head-row th,
 thead th {
   white-space: nowrap;
@@ -812,6 +826,36 @@ table {
   margin-bottom: 18px;
 }
 
+/* Second-level tabs inside an estate report tab (e.g. Certificates). Pills
+   rather than tabs, so a tab strip inside a tab strip still reads as a level
+   down rather than as a second row of the same control. */
+.estate-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.estate-subtabs .nav-link {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #1c2430;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.estate-subtabs .nav-link:hover {
+  border-color: var(--accent);
+}
+
+.estate-subtabs .nav-link.active {
+  background: #e8eef4;
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .severity-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -840,6 +884,13 @@ table {
 .estate-tabs .nav-link.active {
   color: var(--accent);
   font-weight: 600;
+}
+
+/* "from Critical" under a severity that the environment cap re-ranked. */
+.sev-capped {
+  font-size: 0.75rem;
+  font-weight: 400;
+  white-space: nowrap;
 }
 
 .sev-critical { color: #8b1e1e; font-weight: 700; }
