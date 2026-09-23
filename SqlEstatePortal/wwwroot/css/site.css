@@ -2464,3 +2464,105 @@ select.ss-native {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ---- Findings: Move To, and the hover history on a moved row ---- */
+
+/* A moved row is marked so it reads differently from a row the environment cap
+   touched - one is a person's decision, the other is a rule. */
+.finding-moved > td:first-child {
+  border-left: 3px solid var(--accent-2);
+}
+
+/* The Finding cell is the positioning context for the tooltip. It has to sit
+   above its neighbours while open, or the panel is clipped by the next row. */
+.finding-moved td:nth-child(4) {
+  position: relative;
+}
+
+.finding-moved:hover td:nth-child(4),
+.finding-moved:focus-within td:nth-child(4) {
+  z-index: 61;
+}
+
+.finding-history {
+  position: absolute;
+  z-index: 60;
+  left: 0;
+  top: calc(100% + 4px);
+  min-width: 320px;
+  max-width: 460px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(20, 55, 90, 0.18);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease, visibility 0.12s ease;
+  white-space: normal;
+  text-align: left;
+  font-weight: 400;
+}
+
+.finding-moved:hover .finding-history,
+.finding-moved:focus-within .finding-history {
+  opacity: 1;
+  visibility: visible;
+}
+
+.finding-history-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.finding-history-entry {
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.finding-history-entry:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.finding-history-move {
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: var(--ink);
+}
+
+.finding-history-who {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 1px 0 3px;
+}
+
+.finding-history-comment {
+  font-size: 0.84rem;
+  color: var(--ink);
+  font-style: italic;
+}
+
+/* The dialog's read-only summary of the finding being moved. */
+.move-finding-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.move-finding-meta dt { color: var(--muted); font-weight: 600; }
+.move-finding-meta dd { margin: 0; }
+
+.move-finding-text {
+  padding: 8px 10px;
+  border-left: 3px solid var(--line);
+  background: #f7f9fc;
+  margin-bottom: 14px;
+}

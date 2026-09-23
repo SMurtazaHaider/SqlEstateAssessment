@@ -534,6 +534,15 @@ public class AssessmentRunnerService
     /// severity counts. Safe to call more than once: the policy always works
     /// from BaseSeverity, so a second pass over already-capped findings is a
     /// no-op rather than a compounding downgrade.
+    ///
+    /// Manual moves are NOT consulted here, and that is the point. A new
+    /// assessment reports what the collector found, capped by environment, and
+    /// nothing else. Somebody's decision to move last month's finding to Info
+    /// does not carry over - if the same thing is still true today it is
+    /// reported again, at its real severity, and somebody looks at it again.
+    /// The alternative is a move made once quietly suppressing a finding for
+    /// every assessment after it, including after the underlying problem has
+    /// got worse.
     /// </summary>
     private async Task ApplySeverityPolicyAsync(AssessmentRun run, CancellationToken cancellationToken)
     {

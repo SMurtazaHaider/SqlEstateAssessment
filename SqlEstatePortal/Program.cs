@@ -46,6 +46,7 @@ builder.Services.AddScoped<ServerReachabilityService>();
 builder.Services.AddScoped<InventorySyncService>();
 builder.Services.AddScoped<AssessmentCompareService>();
 builder.Services.AddScoped<ServerQaCompareService>();
+builder.Services.AddScoped<FindingOverrideService>();
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();

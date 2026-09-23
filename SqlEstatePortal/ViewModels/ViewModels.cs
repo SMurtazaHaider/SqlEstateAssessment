@@ -112,6 +112,15 @@ public class AssessmentDetailsViewModel
     public string? SyncStatus { get; set; }
     public bool ShowSyncToRegister { get; set; }
     public bool ShowNoChangesFound { get; set; }
+
+    /// <summary>
+    /// Override rows per finding key, newest first. Empty for a finding that has
+    /// never been moved. Drives both the "moved" marker and the hover history.
+    /// </summary>
+    public Dictionary<string, List<AssessmentFindingOverride>> FindingHistory { get; set; } = new();
+
+    /// <summary>Whether the signed-in user may move a finding.</summary>
+    public bool CanMoveFindings { get; set; }
 }
 
 public class AssessmentListItemViewModel

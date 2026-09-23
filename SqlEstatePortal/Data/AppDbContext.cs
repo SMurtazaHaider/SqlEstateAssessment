@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<CtApplicationServer> CtApplicationServers => Set<CtApplicationServer>();
     public DbSet<AssessmentRun> AssessmentRuns => Set<AssessmentRun>();
     public DbSet<AssessmentFinding> AssessmentFindings => Set<AssessmentFinding>();
+    public DbSet<AssessmentFindingOverride> AssessmentFindingOverrides => Set<AssessmentFindingOverride>();
     public DbSet<AssessmentServerSnapshot> AssessmentServerSnapshots => Set<AssessmentServerSnapshot>();
     public DbSet<AssessmentDatabase> AssessmentDatabases => Set<AssessmentDatabase>();
     public DbSet<AssessmentVolume> AssessmentVolumes => Set<AssessmentVolume>();
@@ -69,6 +70,10 @@ public class AppDbContext : DbContext
             .WithMany(x => x.Permissions)
             .HasForeignKey(x => x.AccessRoleId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Every page of findings looks overrides up by key, newest first.
+        modelBuilder.Entity<AssessmentFindingOverride>()
+            .HasIndex(x => new { x.FindingKey, x.ChangedOnUtc });
 
         modelBuilder.Entity<AssessmentFinding>()
             .HasOne(x => x.AssessmentRun)

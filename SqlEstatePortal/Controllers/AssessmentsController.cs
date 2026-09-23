@@ -18,6 +18,8 @@ public class AssessmentsController : Controller
     private readonly InventorySyncService _inventorySync;
     private readonly AssessmentCompareService _compareService;
     private readonly ServerQaCompareService _qaCompareService;
+    private readonly FindingOverrideService _findingOverrides;
+    private readonly PermissionService _permissions;
 
     public AssessmentsController(
         AppDbContext db,
@@ -25,7 +27,9 @@ public class AssessmentsController : Controller
         ServerReachabilityService reachability,
         InventorySyncService inventorySync,
         AssessmentCompareService compareService,
-        ServerQaCompareService qaCompareService)
+        ServerQaCompareService qaCompareService,
+        FindingOverrideService findingOverrides,
+        PermissionService permissions)
     {
         _db = db;
         _runner = runner;
@@ -33,6 +37,8 @@ public class AssessmentsController : Controller
         _inventorySync = inventorySync;
         _compareService = compareService;
         _qaCompareService = qaCompareService;
+        _findingOverrides = findingOverrides;
+        _permissions = permissions;
     }
 
     [RequirePermission(AppModules.Assessments, "view")]
@@ -156,8 +162,115 @@ public class AssessmentsController : Controller
             SyncBatchId = syncBatch?.Id,
             SyncStatus = syncStatus,
             ShowSyncToRegister = syncEligible && hasChanges,
-            ShowNoChangesFound = syncEligible && !hasChanges
+            ShowNoChangesFound = syncEligible && !hasChanges,
+            // Scoped to this run: the hover history shows the moves made on the
+            // assessment being looked at, not moves made on an earlier one.
+            FindingHistory = await _findingOverrides.GetHistoryAsync(id, run.Findings),
+            CanMoveFindings = await _permissions.HasAsync(User, AppModules.Assessments, "update")
         });
+    }
+
+    /// <summary>
+    /// Moves one finding to a different severity, with a mandatory comment.
+    ///
+    /// The comment is validated here and not only in the browser - the form can
+    /// be posted directly, and a blank comment would leave an unexplained change
+    /// in an audit trail whose whole purpose is to explain changes.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequirePermission(AppModules.Assessments, "update")]
+    public async Task<IActionResult> MoveFinding(
+        int id, int findingId, string toSeverity, string comment, CancellationToken ct = default)
+    {
+        var finding = await _db.AssessmentFindings
+            .FirstOrDefaultAsync(f => f.Id == findingId && f.AssessmentRunId == id, ct);
+
+        if (finding == null)
+        {
+            TempData["FindingMoveError"] = "That finding no longer exists on this assessment.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        comment = (comment ?? string.Empty).Trim();
+
+        if (comment.Length == 0)
+        {
+            TempData["FindingMoveError"] = "A comment is required when moving a finding.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        if (comment.Length > FindingOverrideService.MaxCommentLength)
+        {
+            TempData["FindingMoveError"] =
+                $"The comment is too long (maximum {FindingOverrideService.MaxCommentLength} characters).";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        if (!FindingOverrideService.IsValidTarget(toSeverity))
+        {
+            TempData["FindingMoveError"] = "Choose a severity to move the finding to.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var actor = User.Identity?.Name ?? "Unknown";
+        var from = finding.Severity;
+        var row = await _findingOverrides.MoveAsync(finding, toSeverity, comment, actor, id, ct);
+
+        if (row == null)
+        {
+            TempData["FindingMoveError"] = $"That finding is already {finding.Severity}.";
+        }
+        else
+        {
+            // The run's tiles are stored counts, so they have to be recomputed
+            // here or the Summary and Findings tabs disagree until the next
+            // restart.
+            await RecountAsync(id, ct);
+            TempData["FindingMoveOk"] = $"Moved from {from} to {row.ToSeverity}.";
+        }
+
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    /// <summary>
+    /// Recomputes one run's severity tiles after a finding has been moved.
+    ///
+    /// Set-based on purpose. Loading the run with .Include(r => r.Findings) looks
+    /// obvious and is a trap: AssessmentRuns carries HtmlContent as
+    /// nvarchar(max) - the whole stored HTML report - and the join repeats it
+    /// once per finding. On a run with 500 findings and a few MB of report that
+    /// is gigabytes over the wire, and the request simply hangs. The same
+    /// mistake hung application startup twice; see Data/SeverityRerankPass.
+    /// </summary>
+    private async Task RecountAsync(int runId, CancellationToken ct)
+    {
+        // Plain string with a {0} placeholder rather than an interpolated one:
+        // ExecuteSqlRawAsync raises EF1002 for interpolation, and this way runId
+        // travels as a real parameter.
+        const string sql = @"
+            UPDATE r
+               SET CriticalCount = x.Critical,
+                   HighCount     = x.High,
+                   MediumCount   = x.Medium,
+                   LowCount      = x.Low,
+                   InfoCount     = x.Info
+              FROM AssessmentRuns AS r
+             CROSS APPLY (
+                -- ISNULL matters: SUM over a run with no findings returns NULL,
+                -- and these are NOT NULL int columns.
+                SELECT
+                    ISNULL(SUM(CASE WHEN f.Severity = N'Critical' THEN 1 ELSE 0 END), 0) AS Critical,
+                    ISNULL(SUM(CASE WHEN f.Severity = N'High'     THEN 1 ELSE 0 END), 0) AS High,
+                    ISNULL(SUM(CASE WHEN f.Severity = N'Medium'   THEN 1 ELSE 0 END), 0) AS Medium,
+                    ISNULL(SUM(CASE WHEN f.Severity = N'Low'      THEN 1 ELSE 0 END), 0) AS Low,
+                    ISNULL(SUM(CASE WHEN f.Severity = N'Info'     THEN 1 ELSE 0 END), 0) AS Info
+                FROM AssessmentFindings AS f
+                WHERE f.AssessmentRunId = r.Id
+             ) AS x
+             WHERE r.Id = {0};";
+
+        await _db.Database.ExecuteSqlRawAsync(sql, new object[] { runId }, ct);
     }
 
     [HttpGet]

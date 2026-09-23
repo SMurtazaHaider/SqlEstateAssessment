@@ -195,6 +195,47 @@ public static class AssessmentSchema
             // FindingSeverityPolicy. Nullable: rows imported before the policy
             // existed have no original to record, and the re-rank pass fills them
             // from their current Severity the first time it runs.
+            // Manual re-ranks. Append-only: the newest row per
+            // (AssessmentRunId, FindingKey) is the current override for that run,
+            // the rest are its history. A move applies to the run it was made on
+            // and to no other, so a later assessment reports the finding at the
+            // collector's severity again.
+            //
+            // AssessmentRunId is deliberately NOT a foreign key with a cascade -
+            // the audit trail has to outlive the run, otherwise deleting an old
+            // assessment would erase the record of what was decided about it.
+            @"IF OBJECT_ID('AssessmentFindingOverrides','U') IS NULL
+              CREATE TABLE AssessmentFindingOverrides (
+                Id int IDENTITY PRIMARY KEY,
+                FindingKey nvarchar(64) NOT NULL,
+                ServerName nvarchar(200) NOT NULL,
+                Area nvarchar(50) NOT NULL,
+                Finding nvarchar(max) NOT NULL,
+                FromSeverity nvarchar(30) NOT NULL,
+                ToSeverity nvarchar(30) NOT NULL,
+                Comment nvarchar(1000) NOT NULL,
+                ChangedBy nvarchar(100) NOT NULL,
+                ChangedOnUtc datetime2 NOT NULL,
+                AssessmentRunId int NULL
+              );",
+            @"IF OBJECT_ID('AssessmentFindingOverrides','U') IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = N'IX_AssessmentFindingOverrides_Key'
+                  AND object_id = OBJECT_ID('AssessmentFindingOverrides'))
+              CREATE INDEX IX_AssessmentFindingOverrides_Key
+                ON AssessmentFindingOverrides(FindingKey, ChangedOnUtc DESC);",
+            // Every lookup is now "the moves on this run", so the run leads.
+            // The old index above is left in place: it costs almost nothing on a
+            // table this size, and dropping an index is the kind of change that
+            // is awkward to undo on a server somebody else has already deployed.
+            @"IF OBJECT_ID('AssessmentFindingOverrides','U') IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = N'IX_AssessmentFindingOverrides_Run'
+                  AND object_id = OBJECT_ID('AssessmentFindingOverrides'))
+              CREATE INDEX IX_AssessmentFindingOverrides_Run
+                ON AssessmentFindingOverrides(AssessmentRunId, FindingKey, ChangedOnUtc DESC);",
             "IF COL_LENGTH('AssessmentFindings','BaseSeverity') IS NULL ALTER TABLE AssessmentFindings ADD BaseSeverity nvarchar(30) NULL;",
             "IF COL_LENGTH('AssessmentDatabases','CollationName') IS NULL ALTER TABLE AssessmentDatabases ADD CollationName nvarchar(128) NULL;",
             "IF COL_LENGTH('AssessmentDatabases','CreationDate') IS NULL ALTER TABLE AssessmentDatabases ADD CreationDate datetime2 NULL;",

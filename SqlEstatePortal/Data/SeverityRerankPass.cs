@@ -28,6 +28,11 @@ namespace SqlEstatePortal.Data;
 /// The pass is idempotent: BaseSeverity is filled once from the original
 /// Severity and every later decision is computed from BaseSeverity, so repeating
 /// it can never walk a finding progressively down the scale.
+///
+/// It also re-applies manual moves, matched on (run id, finding key) so each one
+/// only ever touches the run it was made on. That is not a convenience: without
+/// it this pass would recompute Severity from BaseSeverity and undo every move
+/// on the next restart.
 /// </summary>
 public static class SeverityRerankPass
 {
@@ -78,18 +83,40 @@ public static class SeverityRerankPass
         foreach (var r in environments)
             map[r.ServerName.Trim()] = r.Environment;
 
-        // Projection, not entities: no Finding/Recommendation text, no run.
-        // Anonymous type rather than a named one, so there is no chance of EF
-        // refusing the projection at startup - the failure mode we are fixing.
+        // Manual moves, newest row per (run, finding). These beat the environment
+        // cap, so they are consulted after it - but only on the run each one was
+        // made on. A move is a decision about one assessment, not a standing
+        // rule, so a newer run never sees it.
+        //
+        // They have to be re-applied here rather than merely written once,
+        // because the loop below recomputes Severity from BaseSeverity for every
+        // row in the table. Drop this and the first restart after somebody moves
+        // a finding would quietly put it back where it was.
+        var overrides = await new FindingOverrideService(db).GetCurrentAsync(ct);
+
+        // Projection, not entities: no Recommendation text, no run, and above
+        // all no AssessmentRuns row - HtmlContent there is nvarchar(max) and an
+        // Include would repeat a whole HTML report per finding, which is what
+        // hung startup before.
+        //
+        // Finding IS loaded, because the override key is built from the finding
+        // text. That is one ordinary column on each finding row - hundreds of KB
+        // across the whole table - not a large column multiplied by a join, so it
+        // is a different problem from the one above. Loading it only when an
+        // override exists was tried and reverted: it needs two projections, and a
+        // projection EF refuses at startup is precisely the failure this method
+        // already caused once.
         var findings = await db.AssessmentFindings
             .AsNoTracking()
             .Select(f => new
             {
                 f.Id,
+                f.AssessmentRunId,
                 f.ServerName,
                 f.Area,
                 f.BaseSeverity,
-                f.Severity
+                f.Severity,
+                f.Finding
             })
             .ToListAsync(ct);
 
@@ -102,6 +129,14 @@ public static class SeverityRerankPass
 
             var effective = FindingSeverityPolicy.Apply(
                 baseSeverity, f.Area, LookupEnvironment(map, f.ServerName));
+
+            // Matched on the pair, so a move made on run 38 leaves the same
+            // finding on run 39 alone.
+            if (overrides.Count > 0)
+            {
+                var key = Models.AssessmentFindingOverride.BuildKey(f.ServerName, f.Area, f.Finding);
+                if (overrides.TryGetValue((f.AssessmentRunId, key), out var moved)) effective = moved;
+            }
 
             if (string.Equals(effective, f.Severity, StringComparison.OrdinalIgnoreCase)) continue;
 

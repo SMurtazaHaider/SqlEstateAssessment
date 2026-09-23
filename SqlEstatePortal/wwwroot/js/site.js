@@ -425,6 +425,19 @@
 
   function cellExportText(cell) {
     if (!cell) return '';
+
+    // A cell can contain UI that is not data - the findings grid puts its hover
+    // history panel inside the Finding cell. Anything marked data-export="skip"
+    // is removed from a clone before the text is read, so the CSV carries the
+    // finding and not the tooltip that happens to sit in the same cell.
+    if (cell.querySelector('[data-export="skip"]')) {
+      var clone = cell.cloneNode(true);
+      Array.prototype.forEach.call(
+        clone.querySelectorAll('[data-export="skip"]'),
+        function (el) { el.parentNode.removeChild(el); });
+      return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+
     return (cell.textContent || '').replace(/\s+/g, ' ').trim();
   }
 
@@ -916,6 +929,75 @@
     });
   });
 
+  // ---------------------------------------------------------------------
+  // Move To - fills the shared dialog from the clicked row, and refuses to
+  // submit without a comment. The server checks the comment too; this is only
+  // so the user finds out before a round trip.
+  // ---------------------------------------------------------------------
+  function bindMoveFinding() {
+    var modalEl = document.getElementById('moveFindingModal');
+    if (!modalEl || modalEl.dataset.bound === '1') return;
+    modalEl.dataset.bound = '1';
+
+    var form = document.getElementById('moveFindingForm');
+    var idField = document.getElementById('moveFindingId');
+    var toField = document.getElementById('moveFindingTo');
+    var commentField = document.getElementById('moveFindingComment');
+    var submitBtn = document.getElementById('moveFindingSubmit');
+
+    function set(id, value) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = value || '';
+    }
+
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('.js-move-finding');
+      if (!btn) return;
+
+      idField.value = btn.getAttribute('data-finding-id') || '';
+      set('moveFindingServer', btn.getAttribute('data-server'));
+      set('moveFindingArea', btn.getAttribute('data-area'));
+      set('moveFindingCurrent', btn.getAttribute('data-severity'));
+      set('moveFindingText', btn.getAttribute('data-finding'));
+
+      toField.value = '';
+      commentField.value = '';
+      commentField.setCustomValidity('');
+
+      // The severity it already holds is not a move, so take it off the list
+      // rather than letting the user pick it and get an error back.
+      var current = (btn.getAttribute('data-severity') || '').toLowerCase();
+      Array.prototype.forEach.call(toField.options, function (opt) {
+        opt.hidden = opt.value !== '' && opt.value.toLowerCase() === current;
+        opt.disabled = opt.hidden;
+      });
+
+      if (window.bootstrap && window.bootstrap.Modal) {
+        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      }
+    });
+
+    function validate() {
+      var ok = commentField.value.trim().length > 0;
+      commentField.setCustomValidity(ok ? '' : 'Enter a reason for the change.');
+      return ok;
+    }
+
+    commentField.addEventListener('input', validate);
+
+    form.addEventListener('submit', function (e) {
+      // A comment of only spaces passes the browser's required check but is
+      // rejected by the server, so trim before deciding.
+      if (!validate() || !toField.value) {
+        e.preventDefault();
+        form.reportValidity();
+        return;
+      }
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Moving...';
+    });
+  }
+
   function bindAssessmentProgress() {
     var overlay = document.getElementById('assessmentProgressOverlay');
     var bar = document.getElementById('assessmentProgressBar');
@@ -1315,8 +1397,12 @@
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindAssessmentProgress);
+    document.addEventListener('DOMContentLoaded', function () {
+      bindAssessmentProgress();
+      bindMoveFinding();
+    });
   } else {
     bindAssessmentProgress();
+    bindMoveFinding();
   }
 })();

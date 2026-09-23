@@ -45,6 +45,14 @@
 {
     <div class="alert alert-warning">@syncErr</div>
 }
+@if (TempData["FindingMoveOk"] is string moveOk)
+{
+    <div class="alert alert-success">@moveOk</div>
+}
+@if (TempData["FindingMoveError"] is string moveErr)
+{
+    <div class="alert alert-warning">@moveErr</div>
+}
 @if (!string.IsNullOrWhiteSpace(run.ErrorMessage))
 {
     <div class="alert alert-danger">@run.ErrorMessage</div>
@@ -75,6 +83,14 @@
         </select>
         <button type="button" class="btn btn-primary filter-go-btn" id="assessmentGoBtn">Go</button>
     </div>
+    @{
+        // _EstateReport's model is the run itself and it is shared with other
+        // pages, so the Move To context travels in ViewData rather than forcing
+        // a model change on every caller.
+        ViewData["FindingHistory"] = Model.FindingHistory;
+        ViewData["CanMoveFindings"] = Model.CanMoveFindings;
+        ViewData["AssessmentRunId"] = run.Id;
+    }
     @await Html.PartialAsync("_EstateReport", run)
 </div>
 @* @if (!string.IsNullOrWhiteSpace(run.OutputLog))

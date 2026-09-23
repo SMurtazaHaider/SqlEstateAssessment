@@ -20,6 +20,18 @@
     List<AssessmentSysadmin> SysadminsIn(SysadminClassifier.AccountClass c) =>
         sysadminsByClass.TryGetValue(c, out var list) ? list : new List<AssessmentSysadmin>();
 
+    // Move To context, supplied by Assessments/Details. Absent on any other page
+    // that renders this partial, in which case the column simply does not appear.
+    var findingHistory = ViewData["FindingHistory"] as Dictionary<string, List<AssessmentFindingOverride>>
+                         ?? new Dictionary<string, List<AssessmentFindingOverride>>();
+    var canMoveFindings = ViewData["CanMoveFindings"] as bool? ?? false;
+    var moveRunId = ViewData["AssessmentRunId"] as int? ?? Model.Id;
+
+    List<AssessmentFindingOverride> HistoryFor(AssessmentFinding f) =>
+        findingHistory.TryGetValue(
+            AssessmentFindingOverride.BuildKey(f.ServerName, f.Area, f.Finding), out var h)
+            ? h : new List<AssessmentFindingOverride>();
+
     var sysadminTabs = new[]
     {
         (Class: SysadminClassifier.AccountClass.WindowsUser,
@@ -39,7 +51,7 @@
 
         (Class: SysadminClassifier.AccountClass.UnknownService,
          Id: "unrecognised",
-         Label: "Extension service accounts",
+         Label: "Unrecognised service accounts",
          Blurb: "Service accounts holding sysadmin that SQL Server setup does not create - Azure extensions, backup agents, monitoring tools. Each one is software with full control of the instance, so each should be accounted for."),
 
         (Class: SysadminClassifier.AccountClass.BuiltInService,
@@ -95,26 +107,72 @@
             </div>
             <table class="table table-sm" data-export-name="Findings">
                 <thead>
-                    @await Html.PartialAsync("_ColumnFilters", new[] { "Severity", "Area", "Server", "Finding", "Recommendation" })
+                    @await Html.PartialAsync("_ColumnFilters",
+                        canMoveFindings
+                            ? new[] { "Severity", "Area", "Server", "Finding", "Recommendation", "-Actions" }
+                            : new[] { "Severity", "Area", "Server", "Finding", "Recommendation" })
                 </thead>
                 <tbody>
                 @foreach (var f in findings)
                 {
-                    <tr data-server="@f.ServerName" data-severity="@f.Severity">
+                    var history = HistoryFor(f);
+                    var moved = history.Count > 0;
+                    var latest = moved ? history[0] : null;
+                    <tr data-server="@f.ServerName" data-severity="@f.Severity"
+                        class="@(moved ? "finding-moved" : null)">
                         <td class="sev-@f.Severity.ToLowerInvariant()">
                             @f.Severity
-                            @if (FindingSeverityPolicy.WasCapped(f))
+                            @if (moved)
                             {
-                                @* Show the cap rather than hide it: without this nobody can tell a
-                                   genuine Medium from a Critical that was re-ranked, and the rule
-                                   becomes impossible to audit or tune. *@
+                                @* A move is shown, never hidden. The full history is in the
+                                   tooltip below; this is the at-a-glance marker. *@
+                                <span class="muted d-block sev-capped">moved from @latest!.FromSeverity</span>
+                            }
+                            else if (FindingSeverityPolicy.WasCapped(f))
+                            {
+                                @* Show the environment cap rather than hide it: without this nobody
+                                   can tell a genuine Medium from a Critical that was re-ranked, and
+                                   the rule becomes impossible to audit or tune. *@
                                 <span class="muted d-block sev-capped">from @f.BaseSeverity</span>
                             }
                         </td>
                         <td>@f.Area</td>
                         <td>@f.ServerName</td>
-                        <td>@f.Finding</td>
+                        <td>
+                            @f.Finding
+                            @if (moved)
+                            {
+                                <div class="finding-history" role="note" data-export="skip">
+                                    <div class="finding-history-title">Severity history</div>
+                                    @foreach (var hrow in history)
+                                    {
+                                        <div class="finding-history-entry">
+                                            <div class="finding-history-move">
+                                                @hrow.FromSeverity <span aria-hidden="true">&rarr;</span> @hrow.ToSeverity
+                                            </div>
+                                            <div class="finding-history-who">
+                                                @hrow.ChangedBy &middot; @hrow.ChangedOnUtc.ToString("yyyy-MM-dd HH:mm") UTC
+                                            </div>
+                                            <div class="finding-history-comment">&ldquo;@hrow.Comment&rdquo;</div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </td>
                         <td>@f.Recommendation</td>
+                        @if (canMoveFindings)
+                        {
+                            <td class="text-nowrap">
+                                <button type="button" class="btn btn-sm btn-outline-secondary js-move-finding"
+                                        data-finding-id="@f.Id"
+                                        data-server="@f.ServerName"
+                                        data-area="@f.Area"
+                                        data-severity="@f.Severity"
+                                        data-finding="@f.Finding">
+                                    Move To
+                                </button>
+                            </td>
+                        }
                     </tr>
                 }
                 </tbody>
@@ -559,3 +617,61 @@
         </div>
     </div>
 </div>
+
+@if (canMoveFindings)
+{
+    <!-- One dialog for the whole grid; the clicked row fills it in. Rendering a
+         modal per row would put hundreds of hidden forms on the page. -->
+    <div class="modal fade" id="moveFindingModal" tabindex="-1" aria-labelledby="moveFindingLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <form method="post" asp-controller="Assessments" asp-action="MoveFinding"
+                  asp-route-id="@moveRunId" class="modal-content" id="moveFindingForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="findingId" id="moveFindingId" />
+
+                <div class="modal-header">
+                    <h2 class="modal-title" id="moveFindingLabel">Move finding</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body">
+                    <dl class="move-finding-meta">
+                        <dt>Server</dt><dd id="moveFindingServer"></dd>
+                        <dt>Area</dt><dd id="moveFindingArea"></dd>
+                        <dt>Currently</dt><dd id="moveFindingCurrent"></dd>
+                    </dl>
+                    <p class="muted move-finding-text" id="moveFindingText"></p>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="moveFindingTo">Move to <span class="text-danger">*</span></label>
+                        <select class="form-select" name="toSeverity" id="moveFindingTo" required>
+                            <option value="">-- choose a severity --</option>
+                            @foreach (var sev in FindingOverrideService.TargetSeverities)
+                            {
+                                <option value="@sev">@sev</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-1">
+                        <label class="form-label" for="moveFindingComment">
+                            Reason for the change <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" name="comment" id="moveFindingComment" rows="3"
+                                  maxlength="@FindingOverrideService.MaxCommentLength" required
+                                  placeholder="Why is this being moved? e.g. accepted risk, ticket reference, compensating control."></textarea>
+                        <div class="form-text">
+                            Required. This is recorded permanently against the finding, with your name
+                            and the time, and stays visible to whoever reviews it next.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="moveFindingSubmit">Move finding</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
